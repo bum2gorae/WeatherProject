@@ -109,8 +109,8 @@ fun setWeather(nx: String, ny: String, applicationContext: Context?, onSuccess: 
     // 날씨 정보 가져오기
     // (응답 자료 형식-"JSON", 한 페이지 결과 수 = 10, 페이지 번호 = 1, 발표 날싸, 발표 시각, 예보지점 좌표)
     val call = ApiObject.retrofitService.getWeather(
-        1,
         10,
+        1,
         "JSON",
         base_date,
         base_time,
@@ -141,15 +141,15 @@ fun setWeather(nx: String, ny: String, applicationContext: Context?, onSuccess: 
                 var temp = 0            // 기온
                 // 날씨 정보 가져오기
                 var it: List<ITEM> = response.body()!!.response.body.items.item
-//                for (i in 0..9) {
-                    when (it[0].category) {
-                        "POP" -> rainRatio = it[0].fcstValue    // 강수 기온
-                        "PTY" -> rainType = it[0].fcstValue     // 강수 형태
-                        "REH" -> humidity = it[0].fcstValue     // 습도
-                        "SKY" -> sky = it[0].fcstValue          // 하늘 상태
-                        "T3H" -> temp = it[0].fcstValue.toInt()         // 기온
-//                        else -> continue
-//                    }
+                for (i in 0..9) {
+                    when (it[i].category) {
+                        "POP" -> rainRatio = it[i].fcstValue    // 강수 기온
+                        "PTY" -> rainType = it[i].fcstValue     // 강수 형태
+                        "REH" -> humidity = it[i].fcstValue     // 습도
+                        "SKY" -> sky = it[i].fcstValue          // 하늘 상태
+                        "T3H" -> temp = it[i].fcstValue.toInt()         // 기온
+                        else -> continue
+                    }
                 }
                 Toast.makeText(
                     applicationContext,
