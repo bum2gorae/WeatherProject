@@ -1,7 +1,6 @@
 package com.example.weatherproject
 
 import retrofit2.Call
-import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -16,7 +15,7 @@ interface WeatherIF {
         @Query("base_time") base_time: String,  // 발표 시각
         @Query("nx") nx: String,                // 예보지점 X 좌표
         @Query("ny") ny: String,                 // 예보지점 Y 좌표
-    ): Call<String>
+    ): Call<WEATHERCLASS>
 
 
 }

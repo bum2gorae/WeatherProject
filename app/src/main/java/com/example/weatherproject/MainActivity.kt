@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.weatherproject.ui.theme.WeatherProjectTheme
+import com.google.gson.annotations.SerializedName
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -44,7 +45,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import com.example.weatherproject.WEATHER
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,18 +58,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class WEATHER(val response: RESPONSE)
-data class RESPONSE(val header: HEADER, val body: BODY)
-data class HEADER(val resultCode: Int, val resultMsg: String)
-data class BODY(val dataType: String, val items: ITEMS)
-data class ITEMS(val item: List<ITEM>)
+
 
 // category : 자료 구분 코드, fcstDate : 예측 날짜, fcstTime : 예측 시간, fcstValue : 예보 값
 data class ITEM(
     val category: String,
     val fcstDate: String,
     val fcstTime: String,
-    val fcstValue: String
+    val fcstValue: String,
+    val baseDate: Int,
+    val baseTime: Int
 )
 
 // retrofit을 사용하기 위한 빌더 생성
@@ -89,7 +87,7 @@ data class Weather(
     val rainType: String,      // 강수 형태
     val humidity: String,      // 습도
     val sky: String,           // 하능 상태
-    val temp: String,          // 기온
+    val temp: Int,          // 기온
 )
 
 fun setWeather(nx: String, ny: String, applicationContext: Context?, onSuccess: (Weather) -> Unit) {
@@ -119,60 +117,59 @@ fun setWeather(nx: String, ny: String, applicationContext: Context?, onSuccess: 
         nx,
         ny
     )
-    call.enqueue(object : Callback<String> {
-        override fun onResponse(call: Call<String>, response: Response<String>) {
-            Log.d("WeatherProjecct", "${response.isSuccessful}")
-//            TODO("Not yet implemented")
-        }
-
-        override fun onFailure(call: Call<String>, t: Throwable) {
-            Log.d("WeatherProjecct", "onFailure ${base_date}, ${base_time}")
-//            TODO("Not yet implemented")
-        }
-
-    })
-}
-//    call.enqueue(object : retrofit2.Callback<WEATHER> {
-//        // 응답 성공 시
-//        override fun onResponse(call: Call<WEATHER>, response: Response<WEATHER>) {
-//            if (response.isSuccessful) {
-//                var rainRatio = ""      // 강수 확률
-//                var rainType = ""       // 강수 형태
-//                var humidity = ""       // 습도
-//                var sky = ""            // 하능 상태
-//                var temp = ""           // 기온
-//                // 날씨 정보 가져오기
-//                var it: List<ITEM> = response.body()!!.response.body.items.item
-//                for (i in 0..9) {
-//                    when (it[i].category) {
-//                        "POP" -> rainRatio = it[i].fcstValue    // 강수 기온
-//                        "PTY" -> rainType = it[i].fcstValue     // 강수 형태
-//                        "REH" -> humidity = it[i].fcstValue     // 습도
-//                        "SKY" -> sky = it[i].fcstValue          // 하늘 상태
-//                        "T3H" -> temp = it[i].fcstValue         // 기온
-//                        else -> continue
-//                    }
-//                }
-//
-//                Toast.makeText(
-//                    applicationContext,
-//                    it[0].fcstDate + ", " + it[0].fcstTime + "의 날씨 정보입니다.",
-//                    Toast.LENGTH_SHORT
-//                ).show()
-//
-//                onSuccess(
-//                    Weather(rainRatio, rainType, humidity, sky, temp)
-//                )
-//            }
+//    call.enqueue(object : Callback<String> {
+//        override fun onResponse(call: Call<String>, response: Response<String>) {
+//            Log.d("WeatherProjecct", "${response.isSuccessful}")
+////            TODO("Not yet implemented")
 //        }
 //
-//        // 응답 실패 시
-//        override fun onFailure(call: Call<WEATHER>, t: Throwable) {
-//            Log.d("api fail", t.message.toString())
+//        override fun onFailure(call: Call<String>, t: Throwable) {
 //            Log.d("WeatherProjecct", "onFailure ${base_date}, ${base_time}")
+////            TODO("Not yet implemented")
 //        }
+//
 //    })
 //}
+    call.enqueue(object : retrofit2.Callback<WEATHERCLASS> {
+        // 응답 성공 시
+        override fun onResponse(call: Call<WEATHERCLASS>, response: Response<WEATHERCLASS>) {
+            if (response.isSuccessful) {
+                var rainRatio = ""      // 강수 확률
+                var rainType = ""       // 강수 형태
+                var humidity = ""       // 습도
+                var sky = ""            // 하능 상태
+                var temp = 0            // 기온
+                // 날씨 정보 가져오기
+                var it: List<ITEM> = response.body()!!.response.body.items.item
+//                for (i in 0..9) {
+                    when (it[0].category) {
+                        "POP" -> rainRatio = it[0].fcstValue    // 강수 기온
+                        "PTY" -> rainType = it[0].fcstValue     // 강수 형태
+                        "REH" -> humidity = it[0].fcstValue     // 습도
+                        "SKY" -> sky = it[0].fcstValue          // 하늘 상태
+                        "T3H" -> temp = it[0].fcstValue.toInt()         // 기온
+//                        else -> continue
+//                    }
+                }
+                Toast.makeText(
+                    applicationContext,
+                    it[0].fcstDate + ", " + it[0].fcstTime + "의 날씨 정보입니다.",
+                    Toast.LENGTH_SHORT
+                ).show()
+                onSuccess(
+                    Weather(rainRatio, rainType, humidity, sky, temp)
+                )
+                Log.d("WeatherProjecct", "onSuccess ${base_date}, ${base_time}")
+            }
+        }
+
+        // 응답 실패 시
+        override fun onFailure(call: Call<WEATHERCLASS>, t: Throwable) {
+            Log.d("api fail", t.message.toString())
+            Log.d("WeatherProjecct", "onFailure ${base_date}, ${base_time}")
+        }
+    })
+}
 
 // 시간 설정하기
 // 동네 예보 API는 3시간마다 현재시각+4시간 뒤의 날씨 예보를 보여줌
@@ -211,7 +208,7 @@ fun Main_Layout() {
         val context = LocalContext.current as? Activity
         var nx = "55"
         var ny = "127"
-        var weather by remember { mutableStateOf(Weather("", "", "", "", "")) }
+        var weather by remember { mutableStateOf(Weather("", "", "", "", 0)) }
 
         setWeather(nx, ny, context) {
             weather = it
@@ -253,9 +250,10 @@ fun Main_Layout() {
             ) {
                 IconBox(
                     imageID = R.drawable.ic_launcher_background,
-                    describeText = "${weather.rainRatio}"
+                    describeText = weather.rainRatio
                 )
-                IconBox(imageID = R.drawable.ic_launcher_background, describeText = "mask")
+                IconBox(imageID = R.drawable.ic_launcher_background,
+                    describeText = weather.temp.toString())
             }
             Spacer(modifier = Modifier.size(40.dp))
             Row(
