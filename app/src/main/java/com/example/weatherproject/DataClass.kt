@@ -1,40 +1,35 @@
 package com.example.weatherproject
 
-import com.google.gson.annotations.SerializedName
 
-
-data class ModelWeather (
-    @SerializedName("rainType")
-    var rainType: String = "",      // 강수 형태
-    @SerializedName("humidity")
-    var humidity: String = "",      // 습도
-    @SerializedName("sky")
-    var sky: String = "",           // 하능 상태
-    @SerializedName("temp")
-    var temp: String = "",          // 기온
-    @SerializedName("fcstTime")
-    var fcstTime: String = "",      // 예보시각
-)
-
-data class WEATHERCLASS(
+data class WeatherClass(
 //    @SerializedName("response")
-    val response: RESPONSE)
-data class RESPONSE(
+    val response: Response)
+data class Response(
 //    @SerializedName("header")
-    val header: HEADER,
+    val header: Header,
 //    @SerializedName("body")
-    val body: BODY)
-data class HEADER(
+    val body: Body)
+data class Header(
 //    @SerializedName("resultCode")
     val resultCode: Int,
 //    @SerializedName("resulMsg")
     val resultMsg: String)
-data class BODY(
+data class Body(
 //    @SerializedName("dataType")
     val dataType: String,
 //    @SerializedName("items")
-    val items: ITEMS)
-data class ITEMS(val item: List<ITEM>)
+    val items: Items)
+data class Items(val item: List<Item>)
+
+// category : 자료 구분 코드, fcstDate : 예측 날짜, fcstTime : 예측 시간, fcstValue : 예보 값
+data class Item(
+    val category: String,
+    val fcstDate: String,
+    val fcstTime: String,
+    val fcstValue: String,
+    val baseDate: Int,
+    val baseTime: Int
+)
 
 
 
