@@ -56,9 +56,9 @@ data class ForecastFactor(
     val fcstDate : String,
     val actNx : Int,
     val actNy : Int,
-    var rainRatio: String,
+    var rainRatio: Int,
     var rainType : String,
-    var humidity : String,
+    var humidity : Int,
     var sky: String,
     var temp : Int
 )

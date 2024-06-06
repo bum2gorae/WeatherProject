@@ -51,4 +51,7 @@ interface UserDao {
         }
         insertAll(*weatherRoomColumns.toTypedArray())
     }
+
+    @Query("SELECT AVG(`temp`) FROM WeatherRoomColumns WHERE fcstDate = baseDate")
+    fun getTempAvg() : Int
 }

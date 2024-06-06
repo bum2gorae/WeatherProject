@@ -43,6 +43,8 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -101,13 +103,14 @@ fun setWeather(
     val cal = Calendar.getInstance()
     var baseDate = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(cal.time) // 현재 날짜
     val time = SimpleDateFormat("HH", Locale.getDefault()).format(cal.time) // 현재 시간
+    Log.d("time","time $time")
     // API 가져오기 적당하게 변환
     val baseTime = getTime(time)
     // 동네예보  API는 3시간마다 현재시간+4시간 뒤의 날씨 예보를 알려주기 때문에
     // 현재 시각이 00시가 넘었다면 어제 예보한 데이터를 가져와야함
-
-    if (baseTime >= "2000") {
-        cal.add(Calendar.DATE, -1).toString()
+    Log.d("basetime","basetime $baseTime")
+    if (baseTime.toInt() >= 2000) {
+        cal.add(Calendar.DATE, -1)
         baseDate = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(cal.time)
     }
 
@@ -115,7 +118,7 @@ fun setWeather(
     // 날씨 정보 가져오기
     // (응답 자료 형식-"JSON", 한 페이지 결과 수 = 10, 페이지 번호 = 1, 발표 날싸, 발표 시각, 예보지점 좌표)
     val call = ApiObject.retrofitService.getWeather(
-        200,
+        400,
         1,
         "JSON",
         baseDate,
@@ -129,10 +132,11 @@ fun setWeather(
         override fun onResponse(call: Call<WeatherClass>, response: Response<WeatherClass>) {
             if (response.isSuccessful) {
                 val scope = CoroutineScope(Dispatchers.IO)
-
+                Log.d("override basetime","basetime $baseTime")
                 scope.launch {
                     val roomInput = mutableMapOf<String, ForecastFactor>()
                     db.userDao().clearAll()
+
                     response.body()!!.response.body.items.item.forEach {
                         if (it.fcstTime !in roomInput.keys) {
                             roomInput.put(
@@ -144,9 +148,9 @@ fun setWeather(
                                     fcstDate = it.fcstDate,
                                     actNx = it.nx,
                                     actNy = it.ny,
-                                    rainRatio = "",
+                                    rainRatio = 0,
                                     rainType = "",
-                                    humidity = "",
+                                    humidity = 0,
                                     sky = "",
                                     temp = 0
                                 )
@@ -154,9 +158,9 @@ fun setWeather(
 
                         }
                         when (it.category) {
-                            "POP" -> roomInput[it.fcstTime]?.rainRatio = it.fcstValue    // 강수 기온
+                            "POP" -> roomInput[it.fcstTime]?.rainRatio = it.fcstValue.toInt()    // 강수 기온
                             "PTY" -> roomInput[it.fcstTime]?.rainType = it.fcstValue     // 강수 형태
-                            "REH" -> roomInput[it.fcstTime]?.humidity = it.fcstValue     // 습도
+                            "REH" -> roomInput[it.fcstTime]?.humidity = it.fcstValue.toInt()     // 습도
                             "SKY" -> roomInput[it.fcstTime]?.sky = it.fcstValue      // 하늘 상태
                             "TMP" -> roomInput[it.fcstTime]?.temp = it.fcstValue.toInt()  // 기온
                         }
@@ -166,7 +170,7 @@ fun setWeather(
                             it.value
                         )
                     }
-                    Log.d("onSuccess", "Success")
+                    Log.d("onSuccess", "Success $baseTime")
                     withContext(Dispatchers.Main) {
                         onSuccess()
                     }
@@ -186,18 +190,20 @@ fun setWeather(
 // 따라서 현재 시간대의 날씨를 알기 위해서는 아래와 같은 과정이 필요함. 자세한 내용은 함께 제공된 파일 확인
 fun getTime(time: String): String {
     var result = ""
-    when (time) {
-        in "00".."02" -> result = "2000"    // 00~02
-        in "03".."05" -> result = "2300"    // 03~05
-        in "06".."08" -> result = "0200"    // 06~08
-        in "09".."11" -> result = "0500"    // 09~11
-        in "12".."14" -> result = "0800"    // 12~14
-        in "15".."17" -> result = "1100"    // 15~17
-        in "18".."20" -> result = "1400"    // 18~20
+    when (time.toInt()) {
+        in 0..0 -> result = "2000"    // 00~02
+        in 3..5 -> result = "2300"    // 03~05
+        in 6..8 -> result = "0200"    // 06~08
+        in 9..11 -> result = "0500"    // 09~11
+        in 12..14 -> result = "0800"    // 12~14
+        in 15..17 -> result = "1100"    // 15~17
+        in 18..20 -> result = "1400"    // 18~20
         else -> result = "1700"             // 21~23
     }
     return result
 }
+
+
 
 @Composable
 fun Main() {
