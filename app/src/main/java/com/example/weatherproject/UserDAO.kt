@@ -1,6 +1,7 @@
 package com.example.weatherproject
 
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
@@ -27,6 +28,27 @@ interface UserDao {
     @Delete
     fun delete(user: WeatherRoomColumns)
 
+    @Query("DELETE FROM WeatherRoomColumns")
+    fun clearAll()
+
     @Query("SELECT `temp` FROM WeatherRoomColumns")
     fun getTemp(): Int
+
+    fun insertForecastFactors(vararg forecastFactors: ForecastFactor) {
+        val weatherRoomColumns = forecastFactors.map { forecastFactor ->
+            WeatherRoomColumns(
+                basetime = forecastFactor.baseTime,
+                basedate = forecastFactor.baseDate,
+                humidity = forecastFactor.humidity,
+                temp = forecastFactor.temp,
+                rainratio = forecastFactor.rainRatio,
+                raintype = forecastFactor.rainType,
+                nx = forecastFactor.actNx,
+                ny = forecastFactor.actNy,
+                fcstdate = forecastFactor.fcstDate,
+                fcsttime = forecastFactor.fcstTime
+            )
+        }
+        insertAll(*weatherRoomColumns.toTypedArray())
+    }
 }

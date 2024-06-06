@@ -1,10 +1,8 @@
 package com.example.weatherproject
 
 import android.app.Activity
-import android.content.Context
 import android.os.Bundle
 import android.util.Log
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,20 +15,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,9 +33,6 @@ import androidx.compose.ui.unit.sp
 import com.example.weatherproject.ui.theme.WeatherProjectTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Call
@@ -65,8 +56,6 @@ class MainActivity : ComponentActivity() {
 }
 
 
-
-
 // retrofit을 사용하기 위한 빌더 생성
 private val retrofit = Retrofit.Builder()
     .baseUrl("http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/")
@@ -79,21 +68,12 @@ object ApiObject {
     }
 }
 
-data class Weather(
-    val rainRatio: String,     // 강수 확률
-    val rainType: String,      // 강수 형태
-    val humidity: String,      // 습도
-    val sky: String,           // 하능 상태
-    val temp: Int,          // 기온
-    val test: Any
-)
-
-fun setWeather(nx: String,
-               ny: String,
-               Context: Context?,
-               db : AppDatabase,
-               onSuccess: (Weather) -> Unit
-               ) {
+fun setWeather(
+    nx: String,
+    ny: String,
+    db: AppDatabase,
+    onSuccess: () -> Unit
+) {
 //    val cal = Calendar.getInstance().apply {
 //        // 동네예보  API는 3시간마다 현재시간+4시간 뒤의 날씨 예보를 알려주기 때문에
 //        // 현재 시각이 00시가 넘었다면 어제 예보한 데이터를 가져와야함
@@ -115,8 +95,6 @@ fun setWeather(nx: String,
 //    val baseDate = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(cal.time) // 현재 날짜
 
 
-
-
     // 준비 단계 : base_date(발표 일자), base_time(발표 시각)
     // 현재 날짜, 시간 정보 가져오기
 
@@ -132,10 +110,12 @@ fun setWeather(nx: String,
         cal.add(Calendar.DATE, -1).toString()
         baseDate = SimpleDateFormat("yyyyMMdd", Locale.getDefault()).format(cal.time)
     }
+
+
     // 날씨 정보 가져오기
     // (응답 자료 형식-"JSON", 한 페이지 결과 수 = 10, 페이지 번호 = 1, 발표 날싸, 발표 시각, 예보지점 좌표)
     val call = ApiObject.retrofitService.getWeather(
-        50,
+        200,
         1,
         "JSON",
         baseDate,
@@ -148,63 +128,55 @@ fun setWeather(nx: String,
         // 응답 성공 시
         override fun onResponse(call: Call<WeatherClass>, response: Response<WeatherClass>) {
             if (response.isSuccessful) {
-                var rainRatio = ""      // 강수 확률
-                var rainType = ""       // 강수 형태
-                var humidity = ""       // 습도
-                var sky = ""            // 하능 상태
-                var temp = 0            // 기온
-                var test: Any = "fail"
-//                 날씨 정보 가져오기
-                response.body()!!.response.body.items.item.forEach {
-                    when (it.category) {
-                        "POP" -> rainRatio = it.fcstValue    // 강수 기온
-                        "PTY" -> rainType = it.fcstValue     // 강수 형태
-                        "REH" -> humidity = it.fcstValue     // 습도
-                        "SKY" -> sky = it.fcstValue          // 하늘 상태
-                        "TMP" -> {temp = it.fcstValue.toInt()
-                            test=it}       // 기온
+                val scope = CoroutineScope(Dispatchers.IO)
+
+                scope.launch {
+                    val roomInput = mutableMapOf<String, ForecastFactor>()
+                    db.userDao().clearAll()
+                    response.body()!!.response.body.items.item.forEach {
+                        if (it.fcstTime !in roomInput.keys) {
+                            roomInput.put(
+                                it.fcstTime,
+                                ForecastFactor(
+                                    baseTime = baseTime,
+                                    baseDate = baseDate,
+                                    fcstTime = it.fcstTime,
+                                    fcstDate = it.fcstDate,
+                                    actNx = it.nx,
+                                    actNy = it.ny,
+                                    rainRatio = "",
+                                    rainType = "",
+                                    humidity = "",
+                                    sky = "",
+                                    temp = 0
+                                )
+                            )
+
+                        }
+                        when (it.category) {
+                            "POP" -> roomInput[it.fcstTime]?.rainRatio = it.fcstValue    // 강수 기온
+                            "PTY" -> roomInput[it.fcstTime]?.rainType = it.fcstValue     // 강수 형태
+                            "REH" -> roomInput[it.fcstTime]?.humidity = it.fcstValue     // 습도
+                            "SKY" -> roomInput[it.fcstTime]?.sky = it.fcstValue      // 하늘 상태
+                            "TMP" -> roomInput[it.fcstTime]?.temp = it.fcstValue.toInt()  // 기온
+                        }
+                    }
+                    roomInput.forEach {
+                        db.userDao().insertForecastFactors(
+                            it.value
+                        )
+                    }
+                    Log.d("onSuccess", "Success")
+                    withContext(Dispatchers.Main) {
+                        onSuccess()
                     }
                 }
-                db.userDao().insertAll(
-                    WeatherRoomColumns(
-                        basetime = baseTime,
-                        basedate = baseDate,
-                        humidity = humidity,
-                        temp = temp,
-                        rainratio = rainRatio,
-                        raintype = rainType,
-                    )
-                )
-//                var it: List<Item> = response.body()!!.response.body.items.item
-//                Log.d("WeatherProoject", "$it")
-//                for (i in 0..49) {
-//                    when (it[i].category) {
-//                        "POP" -> rainRatio = it[i].fcstValue    // 강수 기온
-//                        "PTY" -> rainType = it[i].fcstValue     // 강수 형태
-//                        "REH" -> humidity = it[i].fcstValue     // 습도
-//                        "SKY" -> sky = it[i].fcstValue          // 하늘 상태
-//                        "TMP" -> {temp = it[i].fcstValue.toInt()
-//                            test=it[i]}       // 기온
-//                        else -> continue
-//                    }
-//                }
-//                Toast.makeText(
-//                    applicationContext,
-//                    it[0].fcstDate + ", " + it[0].fcstTime + "의 날씨 정보입니다.",
-//                    Toast.LENGTH_SHORT
-//                ).show()
-                onSuccess(
-                    Weather(rainRatio, rainType, humidity, sky, temp, test)
-                )
-                Log.d("WeatherProjecct", "onSuccess ${baseDate}, ${baseTime}")
-                Log.d("WeatherProjecct", "onSuccess ${humidity}, ${sky}")
             }
         }
 
         // 응답 실패 시
         override fun onFailure(call: Call<WeatherClass>, t: Throwable) {
             Log.d("api fail", t.message.toString())
-            Log.d("WeatherProjecct", "onFailure ${baseDate}, ${baseTime}")
         }
     })
 }
@@ -244,16 +216,14 @@ fun MainScreen() {
     }
     var nx = "55"
     var ny = "127"
-    var weather by remember { mutableStateOf(Weather("", "", "", "", 0, "")) }
     var viewTemp by remember {
         mutableStateOf(0)
     }
 
-    setWeather(nx, ny, context, db) {
-        weather = it
-        Log.d("WeatherProject", weather.test.toString())
+    setWeather(nx, ny, db) {
         CoroutineScope(Dispatchers.IO).launch {
             viewTemp = db.userDao().getTemp()
+            Log.d("temp", db.userDao().getTemp().toString())
         }
     }
 
@@ -300,31 +270,47 @@ fun MainScreen() {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconBox(
-                    imageID = R.drawable.ic_launcher_background,
-                    describeText = weather.rainRatio
+                    imageID = R.drawable.cloth_penguin,
+                    describeText = "-",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(10.dp)
                 )
                 IconBox(
-                    imageID = R.drawable.ic_launcher_background,
-                    describeText = viewTemp.toString()
+                    imageID = R.drawable.cloth_penguin,
+                    describeText = viewTemp.toString(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(10.dp)
                 )
             }
-            Spacer(modifier = Modifier.size(40.dp))
+            Spacer(modifier = Modifier.size(20.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconBox(
-                    imageID = R.drawable.ic_launcher_background,
-                    describeText = "cloth")
+                    imageID = R.drawable.cloth_penguin,
+                    describeText = "cloth",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(10.dp)
+                )
                 IconBox(
-                    imageID = R.drawable.ic_launcher_background,
-                    describeText = "상세보기"
+                    imageID = R.drawable.cloth_penguin,
+                    describeText = "상세보기",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(10.dp)
                 )
             }
             Spacer(modifier = Modifier.size(50.dp))
             Button(onClick = {
-                setWeather(nx, ny, context, db) {
-                    weather = it
+                setWeather(nx, ny, db) {
                 }
             }) {
                 Text(text = "새로고침")
@@ -336,15 +322,15 @@ fun MainScreen() {
 }
 
 @Composable
-fun IconBox(imageID: Int, describeText: String) {
+fun IconBox(imageID: Int, describeText: String, modifier: Modifier = Modifier) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
     ) {
         Image(
             painter = painterResource(id = imageID),
             contentDescription = "test",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(150.dp)
+//            contentScale =  ContentScale.FillWidth
         )
         Spacer(modifier = Modifier.size(20.dp))
         Text(text = describeText)
