@@ -17,5 +17,7 @@ data class WeatherRoomColumns(
     @ColumnInfo(name = "Nx") val nx: Int?,
     @ColumnInfo(name = "Ny") val ny: Int?,
     @ColumnInfo(name = "fcstDate") val fcstdate: String?,
-    @ColumnInfo(name = "fcstTime") val fcsttime: String?
+    @ColumnInfo(name = "fcstTime") val fcsttime: String?,
+    @ColumnInfo(name = "baseD+1") val baseD1: String?,
+    @ColumnInfo(name = "baseD+2") val baseD2: String?,
 )

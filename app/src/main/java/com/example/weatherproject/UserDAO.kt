@@ -32,7 +32,7 @@ interface UserDao {
     fun clearAll()
 
     @Query("SELECT `temp` FROM WeatherRoomColumns")
-    fun getTemp(): Int
+    fun getTemp(): Flow<Int>
 
     fun insertForecastFactors(vararg forecastFactors: ForecastFactor) {
         val weatherRoomColumns = forecastFactors.map { forecastFactor ->
@@ -46,12 +46,30 @@ interface UserDao {
                 nx = forecastFactor.actNx,
                 ny = forecastFactor.actNy,
                 fcstdate = forecastFactor.fcstDate,
-                fcsttime = forecastFactor.fcstTime
+                fcsttime = forecastFactor.fcstTime,
+                baseD1 = forecastFactor.baseD1,
+                baseD2 = forecastFactor.baseD2,
             )
         }
         insertAll(*weatherRoomColumns.toTypedArray())
     }
 
     @Query("SELECT AVG(`temp`) FROM WeatherRoomColumns WHERE fcstDate = baseDate")
-    fun getTempAvg() : Int
+    fun getTempAvg() : Flow<Int>
+
+    @Query("SELECT AVG(`temp`) FROM WeatherRoomColumns WHERE fcstDate = `baseD+1`")
+    fun getTempAvgD1() : Flow<Int>
+
+    @Query("SELECT AVG(`temp`) FROM WeatherRoomColumns WHERE fcstDate = `baseD+2`")
+    fun getTempAvgD2() : Flow<Int>
+
+    @Query("SELECT MAX(rainRatio) FROM WeatherRoomColumns WHERE fcstDate = baseDate")
+    fun getRainMax() : Flow<Int>
+
+    @Query("SELECT MAX(rainRatio) FROM WeatherRoomColumns WHERE fcstDate = `baseD+1`")
+    fun getRainMaxD1() : Flow<Int>
+
+    @Query("SELECT MAX(rainRatio) FROM WeatherRoomColumns WHERE fcstDate = `baseD+2`")
+    fun getRainMaxD2() : Flow<Int>
+
 }

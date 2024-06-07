@@ -60,7 +60,13 @@ data class ForecastFactor(
     var rainType : String,
     var humidity : Int,
     var sky: String,
-    var temp : Int
+    var temp : Int,
+    val baseD1 : String,
+    val baseD2 : String
 )
 
+data class Location(
+    val nx: String,
+    val ny: String
+)
 
