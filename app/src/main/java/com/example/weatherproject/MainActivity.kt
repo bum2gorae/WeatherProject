@@ -1,9 +1,11 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.weatherproject
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.AssetManager
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -49,10 +51,16 @@ import retrofit2.Call
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.InputStream
+import java.lang.Math.log
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.tan
 
 
 class MainActivity : ComponentActivity() {
@@ -63,61 +71,21 @@ class MainActivity : ComponentActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         setContent {
             WeatherProjectTheme {
-
-                val context = LocalContext.current
-                var hasPermission by remember { mutableStateOf(checkLocationPermission(context)) }
-                val locationPermissionRequest = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestMultiplePermissions()
-                ) { permissions ->
-                    when {
-                        permissions.getOrDefault(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            false
-                        ) -> hasPermission = true
-
-                        permissions.getOrDefault(
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                            false
-                        ) -> hasPermission = true
-
-                    }
-                }
-                LaunchedEffect(hasPermission) {
-                    when {
-                        hasPermission -> fusedLocationClient.lastLocation
-                            .addOnSuccessListener { location ->
-                                // 위치가 null이 아닌 경우
-                                location?.let {
-                                    val latitude = it.latitude
-                                    val longitude = it.longitude
-                                    // 위치를 사용하여 필요한 작업 수행
-                                    Log.d("loc", "$latitude, $longitude")
-                                }
-                            }.addOnFailureListener {
-                                Log.d("loc", "${it.toString()}")
-                            }
-                        else -> locationPermissionRequest.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
-                }
-                Main()
+                Main(fusedLocationClient)
             }
         }
     }
+}
 
-    private fun checkLocationPermission(context: Context): Boolean {
-        return !(ActivityCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) != PackageManager.PERMISSION_GRANTED)
-    }
+
+private fun checkLocationPermission(context: Context): Boolean {
+    return !(ActivityCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) != PackageManager.PERMISSION_GRANTED)
 }
 
 // retrofit을 사용하기 위한 빌더 생성
@@ -154,7 +122,6 @@ fun setWeather(
 
     val baseDate = baseDateFormat.format(cal.time)
     val timeNow = timeFormat.format(cal.time) // 현재 시간
-    Log.d("time", timeNow)
     val baseTime = getTime(timeNow)
     cal.add(Calendar.DATE, 1)
     val baseD1 = baseDateFormat.format(cal.time)
@@ -181,35 +148,35 @@ fun setWeather(
                 val scope = CoroutineScope(Dispatchers.IO)
                 scope.launch {
                     val roomInput = mutableMapOf<String, ForecastFactor>()
-                    Log.d("timeCheck", "basetime: $baseTime, basedate: $baseDate")
 
                     response.body()!!.response.body.items.item.forEach {
-                        roomInput[it.fcstTime] = roomInput.getOrDefault(
-                            key = it.fcstTime,
-                            defaultValue = ForecastFactor(
-                                baseTime = baseTime,
-                                baseDate = baseDate,
-                                fcstTime = it.fcstTime,
-                                fcstDate = it.fcstDate,
-                                actNx = it.nx,
-                                actNy = it.ny,
-                                rainRatio = 0,
-                                rainType = "",
-                                humidity = 0,
-                                sky = "",
-                                temp = 0,
-                                baseD1 = baseD1,
-                                baseD2 = baseD2
-                            )
-                        ).apply {
-                            when (it.category) {
-                                "POP" -> this.rainRatio = it.fcstValue.toInt()    // 강수 기온
-                                "PTY" -> this.rainType = it.fcstValue     // 강수 형태
-                                "REH" -> this.humidity = it.fcstValue.toInt()     // 습도
-                                "SKY" -> this.sky = it.fcstValue      // 하늘 상태
-                                "TMP" -> this.temp = it.fcstValue.toInt()  // 기온
+                        roomInput[buildString { it.fcstDate + "_" + it.fcstTime }] =
+                            roomInput.getOrDefault(
+                                key = it.fcstDate + "_" + it.fcstTime,
+                                defaultValue = ForecastFactor(
+                                    baseTime = baseTime,
+                                    baseDate = baseDate,
+                                    fcstTime = it.fcstTime,
+                                    fcstDate = it.fcstDate,
+                                    actNx = it.nx,
+                                    actNy = it.ny,
+                                    rainRatio = 0,
+                                    rainType = "",
+                                    humidity = 0,
+                                    sky = "",
+                                    temp = 0,
+                                    baseD1 = baseD1,
+                                    baseD2 = baseD2
+                                )
+                            ).apply {
+                                when (it.category) {
+                                    "POP" -> this.rainRatio = it.fcstValue.toInt()    // 강수 기온
+                                    "PTY" -> this.rainType = it.fcstValue     // 강수 형태
+                                    "REH" -> this.humidity = it.fcstValue.toInt()     // 습도
+                                    "SKY" -> this.sky = it.fcstValue      // 하늘 상태
+                                    "TMP" -> this.temp = it.fcstValue.toInt()  // 기온
+                                }
                             }
-                        }
                     }
                     db.userDao().clearAll()
                     roomInput.forEach {
@@ -236,7 +203,7 @@ fun setWeather(
 // 동네 예보 API는 3시간마다 현재시각+4시간 뒤의 날씨 예보를 보여줌
 // 따라서 현재 시간대의 날씨를 알기 위해서는 아래와 같은 과정이 필요함. 자세한 내용은 함께 제공된 파일 확인
 fun getTime(time: String): String {
-    var result = ""
+    val result: String
     when (time.toInt()) {
         in 0..2 -> result = "2000"    // 00~02
         in 3..5 -> result = "2300"    // 03~05
@@ -251,70 +218,177 @@ fun getTime(time: String): String {
 }
 
 //좌표변환 함수
-fun getXY(x: Double, y: Double): Pair<String, String> {
+fun getXY(xInput: Double, yInput: Double): Pair<String, String> {
     val Re = 6371.00877
-    val grid = 5.0; // 격자간격 (km)
-    val slat1 = 30.0; // 표준위도 1
-    val slat2 = 60.0; // 표준위도 2
-    val olon = 126.0; // 기준점 경도
-    val olat = 38.0; // 기준점 위도
-    val xo = 210 / grid; // 기준점 X좌표
-    val yo = 675 / grid; // 기준점 Y좌표
-    val Degrad = Math.PI / 180.0
+    val grid = 5.0
+    val slat1 = 30.0
+    val slat2 = 60.0
+    val olon = 126.0
+    val olat = 38.0
+    val xo = 210 / 5.0
+    val yo = 675 / 5.0
+
+
+    val Pi = Math.PI
+    val Degrad = Pi / 180.0
+
     val re = Re / grid
-    val slat1d = slat1 * Degrad
-    val slat2d = slat2 * Degrad
-    val olond = olon * Degrad
-    val olatd = olat * Degrad
+    val slat1Rad = slat1 * Degrad
+    val slat2Rad = slat2 * Degrad
+    val olatRad = olat * Degrad
 
-    var sn = Math.tan(Math.PI * 0.25 + slat2d * 0.5) / Math.tan(Math.PI * 0.25 + slat1d * 0.5)
-    sn = Math.log(Math.cos(slat1d) / Math.cos(slat2d)) / Math.log(sn)
-    var sf = Math.tan(Math.PI * 0.25 + slat1d * 0.5)
-    sf = Math.pow(sf, sn) * Math.cos(slat1d) / sn
-    var ro = Math.tan(Math.PI * 0.25 + olatd * 0.5)
-    ro = re * sf / Math.pow(ro, sn)
+    var sn = tan(Pi * 0.25 + slat2Rad * 0.5) / tan(Pi * 0.25 + slat1Rad * 0.5)
+    sn = log(cos(slat1Rad) / cos(slat2Rad)) / log(sn)
+    var sf = tan(Pi * 0.25 + slat1Rad * 0.5)
+    sf = sf.pow(sn) * cos(slat1Rad) / sn
+    var ro = tan(Pi * 0.25 + olatRad * 0.5)
+    ro = re * sf / ro.pow(sn)
 
-    var ra = Math.tan(Math.PI * 0.25 + (x) * Degrad * 0.5)
-    ra = re * sf / Math.pow(ra, sn)
-    var theta = y * Degrad - olond
-    if (theta > Math.PI) theta -= 2.0 * Math.PI
-    if (theta < -Math.PI) theta += 2.0 * Math.PI
-    theta *= sn
 
-    val xReturn = (ra * Math.sin(theta) + xo + 0.5).toInt().toString()
-    val yReturn = (ro - ra * Math.cos(theta) + yo + 0.5).toInt().toString()
 
-    return Pair(xReturn, yReturn)
+    val sfAdjusted = sf
+    val roAdjusted = ro
+    val olonRad = olon * Degrad
+    val snAdjusted = sn
+
+    val ra = tan(Pi * 0.25 + xInput * Degrad * 0.5)
+    val raAdjusted = re * sfAdjusted / ra.pow(snAdjusted)
+    var theta = yInput * Degrad - olonRad
+    if (theta > Pi) theta -= 2.0 * Pi
+    if (theta < -Pi) theta += 2.0 * Pi
+    theta *= snAdjusted
+    val xOut = (raAdjusted * sin(theta)) + xo
+    val yOut = (roAdjusted - raAdjusted * cos(theta)) + yo
+    Log.d("fin loc", "$xOut, $yOut")
+
+    return Pair(xOut.toString(), yOut.toString())
 }
 
 @Composable
-fun Main() {
-    MainScreen()
-}
-
-@Composable
-fun MainScreen() {
-    val context = LocalContext.current as? Activity
+fun Main(fusedLocationClient: FusedLocationProviderClient) {
     val contextDB = LocalContext.current
-    val db = remember {
+    val dbWeather = remember {
         AppDatabase.getDatabase(contextDB)
     }
+    val dbRegion = remember {
+        AppDatabaseReg.getDatabase(contextDB)
+    }
+    var hasPermission by remember { mutableStateOf(checkLocationPermission(contextDB)) }
+    val locationPermissionRequest = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        when {
+            permissions.getOrDefault(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                false
+            ) -> hasPermission = true
+
+            permissions.getOrDefault(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                false
+            ) -> hasPermission = true
+
+        }
+    }
+    LaunchedEffect(hasPermission) {
+        when {
+            hasPermission -> fusedLocationClient.lastLocation
+                .addOnSuccessListener { location ->
+                    // 위치가 null이 아닌 경우
+                    location?.let {
+                        val latitude = it.latitude
+                        val longitude = it.longitude
+                        // 위치를 사용하여 필요한 작업 수행
+                        Log.d("loc", "$latitude, $longitude")
+                        val (nx, ny) = getXY(latitude, longitude)
+                        Log.d("nx,ny", "$nx, $ny")
+                        setWeather(nx, ny, dbWeather)
+                    }
+                }.addOnFailureListener {
+                    Log.d("loc", it.toString())
+                }
+
+            else -> locationPermissionRequest.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    val viewRain = dbWeather.userDao().getRainMax().collectAsState(initial = -1).value.toString()
+    val viewTemp = dbWeather.userDao().getTempAvg().collectAsState(initial = -1).value.toString()
+    val imageRain = when {
+        viewRain.toInt() >= 60 -> R.drawable.rainy_cat
+        else -> R.drawable.sunny_cat
+    }
+    val imageTemp = when {
+        viewTemp.toInt() >= 25 -> R.drawable.hot_penguin
+        else -> R.drawable.cold_penguin
+    }
+
 
     var todaySwitchCheck by remember {
         mutableStateOf(false)
     }
+    val assetManager: AssetManager = contextDB.assets
+    val inputStream: InputStream = assetManager.open("KoreaRegion.txt")
 
+    LaunchedEffect(key1 = Unit) {
+        withContext(Dispatchers.IO) {
+            inputStream.bufferedReader().readLines().forEach {
+                val token = it.split("\t")
+                val input = KoreanRegionClass(
+                    token[0].toLong(),
+                    token[1],
+                    token[2],
+                    token[3],
+                    token[4].toInt(),
+                    token[5].toInt()
+                )
+                dbRegion.RegDao().clearAll()
+                dbRegion.RegDao().insertAll(input)
+            }
+        }
+    }
 
-    var nx = "55"
-    var ny = "127"
-//    var viewTemp by remember {
-//        mutableStateOf(0)`
-//    }
+    MainScreen(
+        imageRain,
+        viewRain,
+        imageTemp,
+        viewTemp,
+        todaySwitchCheck,
+        onCheckedChange = { todaySwitchCheck = it },
+        onReloadClickSuccess = {
+            fusedLocationClient.lastLocation
+                .addOnSuccessListener { location ->
+                    // 위치가 null이 아닌 경우
+                    location?.let {
+                        val latitude = it.latitude
+                        val longitude = it.longitude
+                        // 위치를 사용하여 필요한 작업 수행
+                        Log.d("init loc", "$latitude, $longitude")
+                        val (nx, ny) = getXY(latitude, longitude)
+                        Log.d("fin loc", "$nx, $ny")
+                        setWeather(nx, ny, dbWeather)
+                    }
+                }.addOnFailureListener {
+                    Log.d("loc", it.toString())
+                }
+        })
+}
 
-    setWeather(nx, ny, db)
-    val viewTemp = db.userDao().getTempAvg().collectAsState(initial = -1)
-    val viewRain = db.userDao().getRainMax().collectAsState(initial = -1)
-
+@Composable
+fun MainScreen(
+    imageRain: Int,
+    viewRain: String,
+    imageTemp: Int,
+    viewTemp: String,
+    todaySwitchCheck: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onReloadClickSuccess: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -343,7 +417,7 @@ fun MainScreen() {
             Spacer(modifier = Modifier.size(20.dp))
             Switch(
                 checked = todaySwitchCheck,
-                onCheckedChange = { todaySwitchCheck = it },
+                onCheckedChange = { onCheckedChange(todaySwitchCheck) },
 //                colors = SwitchDefaults.colors()
             )
         }
@@ -358,16 +432,16 @@ fun MainScreen() {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconBox(
-                    imageID = R.drawable.cloth_penguin,
-                    describeText = viewRain.value.toString(),
+                    imageID = imageRain,
+                    describeText = viewRain,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(10.dp)
                 )
                 IconBox(
-                    imageID = R.drawable.cloth_penguin,
-                    describeText = viewTemp.value.toString(),
+                    imageID = R.drawable.cold_penguin,
+                    describeText = viewTemp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -380,7 +454,7 @@ fun MainScreen() {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconBox(
-                    imageID = R.drawable.cloth_penguin,
+                    imageID = imageTemp,
                     describeText = "cloth",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -388,7 +462,7 @@ fun MainScreen() {
                         .padding(10.dp)
                 )
                 IconBox(
-                    imageID = R.drawable.cloth_penguin,
+                    imageID = R.drawable.cold_penguin,
                     describeText = "상세보기",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -398,7 +472,7 @@ fun MainScreen() {
             }
             Spacer(modifier = Modifier.size(50.dp))
             Button(onClick = {
-                setWeather(nx, ny, db)
+                onReloadClickSuccess()
             }) {
                 Text(text = "새로고침")
             }
@@ -428,6 +502,6 @@ fun IconBox(imageID: Int, describeText: String, modifier: Modifier = Modifier) {
 @Composable
 fun MainPreview() {
     WeatherProjectTheme {
-        MainScreen()
+        MainScreen(R.drawable.sunny_cat,"", R.drawable.hot_penguin,"", false, {}, {})
     }
 }

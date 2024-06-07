@@ -17,7 +17,26 @@ abstract class AppDatabase : RoomDatabase() {
             return instance ?:
             Room.databaseBuilder(
                 context,
-                AppDatabase::class.java, "contact.db"
+                AppDatabase::class.java, "contact_weather.db"
+            ).build()
+                .also { instance = it }
+        }
+    }
+}
+
+@Database(entities = [KoreanRegionClass::class], version = 1)
+abstract class AppDatabaseReg : RoomDatabase() {
+    abstract fun RegDao(): RegDao
+
+    companion object {
+        @Volatile
+        private var instance : AppDatabaseReg? = null
+
+        fun getDatabase(context: Context): AppDatabaseReg {
+            return instance ?:
+            Room.databaseBuilder(
+                context,
+                AppDatabaseReg::class.java, "contact_region.db"
             ).build()
                 .also { instance = it }
         }

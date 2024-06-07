@@ -73,3 +73,12 @@ interface UserDao {
     fun getRainMaxD2() : Flow<Int>
 
 }
+
+@Dao
+interface RegDao {
+    @Insert
+    fun insertAll(vararg users: KoreanRegionClass)
+
+    @Query("DELETE FROM KoreanRegionClass")
+    fun clearAll()
+}
