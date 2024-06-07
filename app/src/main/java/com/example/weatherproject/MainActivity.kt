@@ -63,61 +63,21 @@ class MainActivity : ComponentActivity() {
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         setContent {
             WeatherProjectTheme {
-
-                val context = LocalContext.current
-                var hasPermission by remember { mutableStateOf(checkLocationPermission(context)) }
-                val locationPermissionRequest = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestMultiplePermissions()
-                ) { permissions ->
-                    when {
-                        permissions.getOrDefault(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            false
-                        ) -> hasPermission = true
-
-                        permissions.getOrDefault(
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                            false
-                        ) -> hasPermission = true
-
-                    }
-                }
-                LaunchedEffect(hasPermission) {
-                    when {
-                        hasPermission -> fusedLocationClient.lastLocation
-                            .addOnSuccessListener { location ->
-                                // 위치가 null이 아닌 경우
-                                location?.let {
-                                    val latitude = it.latitude
-                                    val longitude = it.longitude
-                                    // 위치를 사용하여 필요한 작업 수행
-                                    Log.d("loc", "$latitude, $longitude")
-                                }
-                            }.addOnFailureListener {
-                                Log.d("loc", "${it.toString()}")
-                            }
-                        else -> locationPermissionRequest.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
-                }
                 Main()
             }
         }
     }
+}
 
-    private fun checkLocationPermission(context: Context): Boolean {
-        return !(ActivityCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) != PackageManager.PERMISSION_GRANTED)
-    }
+
+private fun checkLocationPermission(context: Context): Boolean {
+    return !(ActivityCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) != PackageManager.PERMISSION_GRANTED)
 }
 
 // retrofit을 사용하기 위한 빌더 생성
@@ -294,7 +254,6 @@ fun Main() {
 
 @Composable
 fun MainScreen() {
-    val context = LocalContext.current as? Activity
     val contextDB = LocalContext.current
     val db = remember {
         AppDatabase.getDatabase(contextDB)
@@ -302,6 +261,45 @@ fun MainScreen() {
 
     var todaySwitchCheck by remember {
         mutableStateOf(false)
+    }
+    var hasPermission by remember { mutableStateOf(checkLocationPermission(contextDB)) }
+    val locationPermissionRequest = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        when {
+            permissions.getOrDefault(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                false
+            ) -> hasPermission = true
+
+            permissions.getOrDefault(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                false
+            ) -> hasPermission = true
+
+        }
+    }
+    LaunchedEffect(hasPermission) {
+        when {
+            hasPermission -> fusedLocationClient.lastLocation
+                .addOnSuccessListener { location ->
+                    // 위치가 null이 아닌 경우
+                    location?.let {
+                        val latitude = it.latitude
+                        val longitude = it.longitude
+                        // 위치를 사용하여 필요한 작업 수행
+                        Log.d("loc", "$latitude, $longitude")
+                    }
+                }.addOnFailureListener {
+                    Log.d("loc", it.toString())
+                }
+            else -> locationPermissionRequest.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
     }
 
 
