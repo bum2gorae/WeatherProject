@@ -6,7 +6,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity
-data class WeatherRoomColumns(
+data class WeatherRoomClass(
     @PrimaryKey(autoGenerate = true) val uid: Int = 0,
     @ColumnInfo(name = "baseTime") val basetime: String?,
     @ColumnInfo(name = "baseDate") val basedate: String?,

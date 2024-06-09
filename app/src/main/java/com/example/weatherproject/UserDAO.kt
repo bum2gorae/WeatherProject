@@ -1,7 +1,6 @@
 package com.example.weatherproject
 
 
-import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
@@ -16,27 +15,27 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface UserDao {
-    @Query("SELECT * FROM WeatherRoomColumns")
-    fun getAll(): Flow<List<WeatherRoomColumns>>
+    @Query("SELECT * FROM WeatherRoomClass")
+    fun getAll(): Flow<List<WeatherRoomClass>>
 
-    @Query("SELECT * FROM WeatherRoomColumns WHERE uid IN (:userIds)")
-    fun loadAllByIds(userIds: IntArray): Flow<List<WeatherRoomColumns>>
+    @Query("SELECT * FROM WeatherRoomClass WHERE uid IN (:userIds)")
+    fun loadAllByIds(userIds: IntArray): Flow<List<WeatherRoomClass>>
 
     @Insert
-    fun insertAll(vararg users: WeatherRoomColumns)
+    fun insertAll(vararg users: WeatherRoomClass)
 
     @Delete
-    fun delete(user: WeatherRoomColumns)
+    fun delete(user: WeatherRoomClass)
 
-    @Query("DELETE FROM WeatherRoomColumns")
+    @Query("DELETE FROM WeatherRoomClass")
     fun clearAll()
 
-    @Query("SELECT `temp` FROM WeatherRoomColumns")
+    @Query("SELECT `temp` FROM WeatherRoomClass")
     fun getTemp(): Flow<Int>
 
     fun insertForecastFactors(vararg forecastFactors: ForecastFactor) {
         val weatherRoomColumns = forecastFactors.map { forecastFactor ->
-            WeatherRoomColumns(
+            WeatherRoomClass(
                 basetime = forecastFactor.baseTime,
                 basedate = forecastFactor.baseDate,
                 humidity = forecastFactor.humidity,
@@ -54,22 +53,22 @@ interface UserDao {
         insertAll(*weatherRoomColumns.toTypedArray())
     }
 
-    @Query("SELECT AVG(`temp`) FROM WeatherRoomColumns WHERE fcstDate = baseDate")
+    @Query("SELECT AVG(`temp`) FROM WeatherRoomClass WHERE fcstDate = baseDate")
     fun getTempAvg() : Flow<Int>
 
-    @Query("SELECT AVG(`temp`) FROM WeatherRoomColumns WHERE fcstDate = `baseD+1`")
+    @Query("SELECT AVG(`temp`) FROM WeatherRoomClass WHERE fcstDate = `baseD+1`")
     fun getTempAvgD1() : Flow<Int>
 
-    @Query("SELECT AVG(`temp`) FROM WeatherRoomColumns WHERE fcstDate = `baseD+2`")
+    @Query("SELECT AVG(`temp`) FROM WeatherRoomClass WHERE fcstDate = `baseD+2`")
     fun getTempAvgD2() : Flow<Int>
 
-    @Query("SELECT MAX(rainRatio) FROM WeatherRoomColumns WHERE fcstDate = baseDate")
+    @Query("SELECT MAX(rainRatio) FROM WeatherRoomClass WHERE fcstDate = baseDate")
     fun getRainMax() : Flow<Int>
 
-    @Query("SELECT MAX(rainRatio) FROM WeatherRoomColumns WHERE fcstDate = `baseD+1`")
+    @Query("SELECT MAX(rainRatio) FROM WeatherRoomClass WHERE fcstDate = `baseD+1`")
     fun getRainMaxD1() : Flow<Int>
 
-    @Query("SELECT MAX(rainRatio) FROM WeatherRoomColumns WHERE fcstDate = `baseD+2`")
+    @Query("SELECT MAX(rainRatio) FROM WeatherRoomClass WHERE fcstDate = `baseD+2`")
     fun getRainMaxD2() : Flow<Int>
 
 }
@@ -81,4 +80,21 @@ interface RegDao {
 
     @Query("DELETE FROM KoreanRegionClass")
     fun clearAll()
+
+    @Query("""
+        SELECT (regName1 || ' ' || regName2 || ' ' || regName3) as combinedNames
+        FROM KoreanRegionClass
+        ORDER BY ((CAST(rawX AS DOUBLE) - :nx) * (CAST(rawX AS DOUBLE) - :nx) + (CAST(rawY AS DOUBLE) - :ny) * (CAST(rawY AS DOUBLE) - :ny)) ASC
+        LIMIT 1
+    """)
+    fun getNearestRegion(nx: Double, ny: Double): Flow<String>
 }
+
+//@Dao
+//interface DustDao {
+//    @Insert
+//    fun insertAll(vararg users: DustRoomClass)
+//
+//    @Query("DELETE FROM DustRoomClass")
+//    fun clearAll()
+//}

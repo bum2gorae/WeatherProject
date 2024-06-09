@@ -1,8 +1,11 @@
 package com.example.weatherproject
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import com.google.gson.annotations.SerializedName
 
-
+// JSON Parsing
 data class WeatherClass(
     @SerializedName("response")
     val response: Response
@@ -49,24 +52,72 @@ data class Item(
     val ny: Int
 )
 
+//data class DustParsingClass(
+//    @SerializedName("response")
+//    val Dustresponse: DustResponse
+//)
+//
+//data class DustResponse(
+//    @SerializedName("body")
+//    val Dustbody: Dustbody
+//)
+//
+//data class Dustbody(
+//    @SerializedName("items")
+//    val DustItem: DustItem
+//)
+//
+//data class DustItem(
+//    @SerializedName("imformData")
+//    val DustInformData: String,
+//    @SerializedName("imformGrade")
+//    val DustInformGrade: String
+//)
+
+
+// RoomInput용 class
 data class ForecastFactor(
-    val baseTime : String,
-    val baseDate : String,
-    val fcstTime : String,
-    val fcstDate : String,
-    val actNx : Int,
-    val actNy : Int,
+    val baseTime: String,
+    val baseDate: String,
+    val fcstTime: String,
+    val fcstDate: String,
+    val actNx: Int,
+    val actNy: Int,
     var rainRatio: Int,
-    var rainType : String,
-    var humidity : Int,
+    var rainType: String,
+    var humidity: Int,
     var sky: String,
-    var temp : Int,
-    val baseD1 : String,
-    val baseD2 : String
+    var temp: Int,
+    val baseD1: String,
+    val baseD2: String
 )
 
-data class Location(
-    val nx: String,
-    val ny: String
+// MainScreen용 class
+class MainScreenData() {
+    var viewRain: String = ""
+    var viewTemp: String = ""
+    var imageRain: Int = 0
+    var textRain: String = ""
+    var imageTemp: Int = 0
+    var textTemp: String = ""
+    var dayCheck: String = ""
+}
+
+// 지역 Data용 class
+class RegionData(
+    var nx: Double,
+    var ny: Double,
+    var regionNameNow: String,
+    var baseDate: String
 )
 
+
+
+//data class DustFactor(
+//    val baseDate: String,
+//    val baseD1 : String,
+//    val informRegion: String,
+//    val informGrade: String,
+//    val informDate: String,
+//    val informD1: String
+//)
