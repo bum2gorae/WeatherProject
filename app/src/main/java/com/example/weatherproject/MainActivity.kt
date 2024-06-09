@@ -44,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
+import androidx.room.ColumnInfo
 import com.example.weatherproject.ui.theme.WeatherProjectTheme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -52,6 +53,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Call
+import retrofit2.Callback
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -102,10 +104,10 @@ private val retrofit = Retrofit.Builder()
     .build()
 
 // retrofit을 사용하기 위한 빌더 생성
-//private val retrofitD = Retrofit.Builder()
-//    .baseUrl("http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/")
-//    .addConverterFactory(GsonConverterFactory.create())
-//    .build()
+private val retrofitD = Retrofit.Builder()
+    .baseUrl("http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/")
+    .addConverterFactory(GsonConverterFactory.create())
+    .build()
 
 object ApiObject {
     val retrofitService: WeatherIF by lazy {
@@ -113,47 +115,53 @@ object ApiObject {
     }
 }
 
-//object ApiobjectD {
-//    val retrofitServiceD: DustIF by lazy {
-//        retrofitD.create(DustIF::class.java)
-//    }
-//}
+object ApiobjectD {
+    val retrofitServiceD: DustIF by lazy {
+        retrofitD.create(DustIF::class.java)
+    }
+}
 
-//fun setDust(baseDate: String) {
-//    val baseDateFactor = listOf(baseDate.substring(0,4), baseDate.substring(4,6),baseDate.substring(6,8))
-//    val baseDateD = baseDateFactor.joinToString("-")
-//    Log.d("baseDateD", baseDateD)
-//    val callD = ApiobjectD.retrofitServiceD.getDust(
-//        baseDateD,
-//        "JSON",
-//        "Z%2BVGgQxuJdpbHl7FH1zN%2FAa3LNv6M4Vyh0VHh6%2BaY6YN1u7%2BNQRX%2FM4A1PuZlx8uVUP4FEd6dODHdZ8Ikg494w%3D%3D",
-//        50,
-//        1
-//    )
-//
-//    callD.enqueue(object : Callback<DustParsingClass> {
-//        override fun onResponse(
-//            call: Call<DustParsingClass>,
-//            response: Response<DustParsingClass>
-//        ) {
-//            if (response.isSuccessful) {
-//                val scope = CoroutineScope(Dispatchers.IO)
-//                scope.launch {
-//                    val roomInputD = mutableMapOf<String, DustFactor>()
-//                    response.body()!!.Dustresponse.Dustbody.DustItem.DustInformGrade.forEach {
-//                        Log.d("grade", it.toString())
-//                    }
-//                    response.body()!!.Dustresponse.Dustbody.DustItem.DustInformData.forEach {
-//                        Log.d("data", it.toString())
-//                    }
-//                }
-//            }
-//        }
-//        override fun onFailure(call: Call<DustParsingClass>, t: Throwable) {
-//            Log.e("dust api fail", t.message.toString())
-//        }
-//    })
-//}
+fun setDust(baseDate: String,
+            context: Context,
+            db: AppDatabaseDust) {
+    val baseDateFactor = listOf(baseDate.substring(0,4), baseDate.substring(4,6),baseDate.substring(6,8))
+    val baseDateD = baseDateFactor.joinToString("-")
+    Log.d("baseDateD", baseDateD)
+    val callD = ApiobjectD.retrofitServiceD.getDust(
+        baseDateD,
+        "JSON",
+        "Z%2BVGgQxuJdpbHl7FH1zN%2FAa3LNv6M4Vyh0VHh6%2BaY6YN1u7%2BNQRX%2FM4A1PuZlx8uVUP4FEd6dODHdZ8Ikg494w%3D%3D",
+        50,
+        1
+    )
+
+    callD.enqueue(object : Callback<DustParsingClass> {
+        override fun onResponse(
+            call: Call<DustParsingClass>,
+            response: Response<DustParsingClass>
+        ) {
+            if (response.isSuccessful) {
+                val scope = CoroutineScope(Dispatchers.IO)
+
+                scope.launch {
+                    val roomInputD = mutableMapOf<String, DustFactor>()
+                    response.body()!!.Dustresponse.Dustbody.DustItem.forEach {
+                        var inputData = DustFactor(baseDateD,
+                            baseDateD,
+                         "",
+                         it.DustInformGrade,
+                         it.DustInformData,
+                         "")
+                        db.DustDao().insertDustFactors(inputData)
+                    }
+                }
+            }
+        }
+        override fun onFailure(call: Call<DustParsingClass>, t: Throwable) {
+            Log.e("dust api fail", t.message.toString())
+        }
+    })
+}
 
 fun setWeather(
     nx: String,
@@ -316,6 +324,9 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     val dbRegion = remember {
         AppDatabaseReg.getDatabase(contextDB)
     }
+    val dbDust = remember {
+        AppDatabaseDust.getDatabase(contextDB)
+    }
     // 준비 단계 : base_date(발표 일자), base_time(발표 시각)
 // 현재 날짜, 시간 정보 가져오기
     val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Seoul")).apply {
@@ -380,6 +391,9 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                         val ny = "127"
 
                         setWeather(nx, ny, dbWeather, cal, baseDate, baseD1, baseD2)
+                        setDust(baseDate,
+                            contextDB,
+                            dbDust)
                     }
                 }.addOnFailureListener {
                     Log.d("loc fail", it.toString())

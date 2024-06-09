@@ -52,27 +52,27 @@ data class Item(
     val ny: Int
 )
 
-//data class DustParsingClass(
-//    @SerializedName("response")
-//    val Dustresponse: DustResponse
-//)
-//
-//data class DustResponse(
-//    @SerializedName("body")
-//    val Dustbody: Dustbody
-//)
-//
-//data class Dustbody(
-//    @SerializedName("items")
-//    val DustItem: DustItem
-//)
-//
-//data class DustItem(
-//    @SerializedName("imformData")
-//    val DustInformData: String,
-//    @SerializedName("imformGrade")
-//    val DustInformGrade: String
-//)
+data class DustParsingClass(
+    @SerializedName("response")
+    val Dustresponse: DustResponse
+)
+
+data class DustResponse(
+    @SerializedName("body")
+    val Dustbody: Dustbody
+)
+
+data class Dustbody(
+    @SerializedName("items")
+    val DustItem: List<DustItem>
+)
+
+data class DustItem(
+    @SerializedName("imformData")
+    val DustInformData: String,
+    @SerializedName("imformGrade")
+    val DustInformGrade: String
+)
 
 
 // RoomInput용 class
@@ -113,11 +113,11 @@ class RegionData(
 
 
 
-//data class DustFactor(
-//    val baseDate: String,
-//    val baseD1 : String,
-//    val informRegion: String,
-//    val informGrade: String,
-//    val informDate: String,
-//    val informD1: String
-//)
+data class DustFactor(
+    val baseDate: String,
+    val baseD1 : String,
+    val informRegion: String,
+    val informGrade: String,
+    val informDate: String,
+    val informD1: String
+)

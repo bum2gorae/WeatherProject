@@ -90,11 +90,25 @@ interface RegDao {
     fun getNearestRegion(nx: Double, ny: Double): Flow<String>
 }
 
-//@Dao
-//interface DustDao {
-//    @Insert
-//    fun insertAll(vararg users: DustRoomClass)
-//
-//    @Query("DELETE FROM DustRoomClass")
-//    fun clearAll()
-//}
+@Dao
+interface DustDao {
+    @Insert
+    fun insertAll(vararg users: DustRoomClass)
+
+    @Query("DELETE FROM DustRoomClass")
+    fun clearAll()
+
+    fun insertDustFactors(vararg dustFactor: DustFactor) {
+        val dustRoomClass = dustFactor.map { dustFactor ->
+            DustRoomClass(
+                basedate = dustFactor.baseDate,
+                baseD1 = dustFactor.baseD1,
+                informRegion = dustFactor.informRegion,
+                informGrade = dustFactor.informGrade,
+                informDate = dustFactor.informDate,
+                informD1 = dustFactor.informD1
+            )
+        }
+        insertAll(*dustRoomClass.toTypedArray())
+    }
+}
