@@ -1,4 +1,3 @@
-
 package com.example.weatherproject
 
 import android.Manifest
@@ -44,14 +43,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
-import androidx.room.ColumnInfo
 import com.example.weatherproject.ui.theme.WeatherProjectTheme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.gson.GsonBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -106,7 +107,12 @@ private val retrofit = Retrofit.Builder()
 // retrofit을 사용하기 위한 빌더 생성
 private val retrofitD = Retrofit.Builder()
     .baseUrl("http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/")
-    .addConverterFactory(GsonConverterFactory.create())
+    .addConverterFactory(GsonConverterFactory.create(GsonBuilder().setLenient().create()))
+    .client(
+        OkHttpClient().newBuilder()
+            .addInterceptor(HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY))
+            .build()
+    )
     .build()
 
 object ApiObject {
@@ -116,47 +122,65 @@ object ApiObject {
 }
 
 object ApiobjectD {
-    val retrofitServiceD: DustIF by lazy {
+    val retrofitServiceDust: DustIF by lazy {
         retrofitD.create(DustIF::class.java)
     }
 }
 
-fun setDust(baseDate: String,
-            context: Context,
-            db: AppDatabaseDust) {
-    val baseDateFactor = listOf(baseDate.substring(0,4), baseDate.substring(4,6),baseDate.substring(6,8))
-    val baseDateD = baseDateFactor.joinToString("-")
-    Log.d("baseDateD", baseDateD)
-    val callD = ApiobjectD.retrofitServiceD.getDust(
-        baseDateD,
+fun setDust(
+    baseDate: String,
+    baseD1: String,
+    db: AppDatabaseDust
+) {
+    val baseDateFactor =
+        listOf(baseDate.substring(0, 4), baseDate.substring(4, 6), baseDate.substring(6, 8))
+    val baseDateDust = baseDateFactor.joinToString("-")
+    Log.d("baseDateD", baseDateDust)
+    val callDust = ApiobjectD.retrofitServiceDust.getDust(
+        baseDateDust,
         "JSON",
-        "Z%2BVGgQxuJdpbHl7FH1zN%2FAa3LNv6M4Vyh0VHh6%2BaY6YN1u7%2BNQRX%2FM4A1PuZlx8uVUP4FEd6dODHdZ8Ikg494w%3D%3D",
+        "Z+VGgQxuJdpbHl7FH1zN/Aa3LNv6M4Vyh0VHh6+aY6YN1u7+NQRX/M4A1PuZlx8uVUP4FEd6dODHdZ8Ikg494w==",
         50,
         1
     )
 
-    callD.enqueue(object : Callback<DustParsingClass> {
+    callDust.enqueue(object : Callback<DustParsingClass> {
         override fun onResponse(
             call: Call<DustParsingClass>,
             response: Response<DustParsingClass>
         ) {
             if (response.isSuccessful) {
+                Log.d("dust api Success", baseDateDust)
                 val scope = CoroutineScope(Dispatchers.IO)
 
                 scope.launch {
-                    val roomInputD = mutableMapOf<String, DustFactor>()
-                    response.body()!!.Dustresponse.Dustbody.DustItem.forEach {
-                        var inputData = DustFactor(baseDateD,
-                            baseDateD,
-                         "",
-                         it.DustInformGrade,
-                         it.DustInformData,
-                         "")
-                        db.DustDao().insertDustFactors(inputData)
+                    val roomInputD = mutableMapOf<String, String>()
+                    db.DustDao().clearAll()
+                    response.body()!!.Dustresponse.Dustbody.DustItem.forEach { dustItem ->
+                        if (dustItem.DustInformCode == "PM25" || dustItem.DustInformCode == "PM10") {
+                            val rawInformGrade =
+                                dustItem.DustInformGrade.split(",").map { rawInform ->
+                                    val parts = rawInform.split(":")
+                                    parts[0].trim() to parts[1].trim()
+                                }.toMap()
+                            roomInputD.putAll(rawInformGrade)
+                            roomInputD.forEach { roomInputFactor ->
+                                val inputData = DustFactor(
+                                    baseDate,
+                                    baseD1,
+                                    dustItem.DustInformCode,
+                                    roomInputFactor.key,
+                                    roomInputFactor.value,
+                                    dustItem.DustInformData
+                                )
+                                db.DustDao().insertDustFactors(inputData)
+                            }
+                        }
                     }
                 }
             }
         }
+
         override fun onFailure(call: Call<DustParsingClass>, t: Throwable) {
             Log.e("dust api fail", t.message.toString())
         }
@@ -184,7 +208,7 @@ fun setWeather(
     // 날씨 정보 가져오기
     // (응답 자료 형식-"JSON", 한 페이지 결과 수 = 10, 페이지 번호 = 1, 발표 날싸, 발표 시각, 예보지점 좌표)
     val call = ApiObject.retrofitService.getWeather(
-        400,
+        1,
         1,
         "JSON",
         baseDate,
@@ -231,11 +255,14 @@ fun setWeather(
                             }
                     }
                     db.userDao().clearAll()
-                    roomInput.forEach {
-                        db.userDao().insertForecastFactors(
-                            it.value
-                        )
-                    }
+                    db.userDao().insertForecastFactors(
+                        *roomInput.map { it.value }.toTypedArray()
+                    )
+//                    roomInput.forEach {
+//                        db.userDao().insertForecastFactors(
+//                            it.value
+//                        )
+//                    }
                     Log.d("onSuccess", "Success $baseTime")
                     withContext(Dispatchers.Main) {
                     }
@@ -267,6 +294,16 @@ fun getTime(time: String): String {
         in 18..20 -> result = "1400"    // 18~20
         else -> result = "1700"             // 21~23
     }
+    return result
+}
+
+fun getEuclidianDistance(
+    x1: Double,
+    y1: Double,
+    x2: Double,
+    y2: Double
+): Double {
+    val result = Math.sqrt(((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2)))
     return result
 }
 
@@ -330,13 +367,19 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     // 준비 단계 : base_date(발표 일자), base_time(발표 시각)
 // 현재 날짜, 시간 정보 가져오기
     val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Seoul")).apply {
-        if (time.hours >= 20 || time.hours <=2) {
+        if (time.hours <= 2) {
 //          동네예보  API는 3시간마다 현재시간+4시간 뒤의 날씨 예보를 알려주기 때문에
 //          현재 시각이 00시가 넘었다면 어제 예보한 데이터를 가져와야함
             add(Calendar.DATE, -1)
         }
     }
     val baseDateFormat = SimpleDateFormat("yyyyMMdd", Locale.KOREA) // 현재 날짜
+    val baseDate = baseDateFormat.format(cal.time)
+    cal.add(Calendar.DATE, 1)
+    val baseD1 = baseDateFormat.format(cal.time)
+    cal.add(Calendar.DATE, 1)
+    val baseD2 = baseDateFormat.format(cal.time)
+
     val viewDateFormat = DateTimeFormatterBuilder()
         .appendPattern("yyyy년 ")
         .appendValue(ChronoField.MONTH_OF_YEAR)
@@ -348,12 +391,9 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     val nextDay = date.plusDays(1)
     val viewDate = date.format(viewDateFormat)
     baseDateFormat.timeZone = TimeZone.getTimeZone("Asia/Seoul")
-    val baseDate = baseDateFormat.format(cal.time)
-    val baseD1 = baseDateFormat.format(cal.time)
+
     val viewDateD1 = nextDay.format(viewDateFormat)
     cal.add(Calendar.DATE, 1)
-    val baseD2 = baseDateFormat.format(cal.time)
-
 
     var hasPermission by remember { mutableStateOf(checkLocationPermission(contextDB)) }
     val locationPermissionRequest = rememberLauncherForActivityResult(
@@ -372,6 +412,10 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
 
         }
     }
+
+    val assetManager: AssetManager = contextDB.assets
+    val inputStream: InputStream = assetManager.open("KoreaRegion.txt")
+
     val nowRegionData by remember {
         mutableStateOf(RegionData(0.0, 0.0, "", ""))
     }
@@ -385,15 +429,43 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                         nowRegionData.ny = it.longitude
                         // 위치를 사용하여 필요한 작업 수행
                         Log.d("loc", "${nowRegionData.nx}, ${nowRegionData.ny}")
-//                        val (nx, ny) = getXY(latitude, longitude)
+                        val (nx, ny) = getXY(it.latitude, it.longitude)
 //                        Log.d("nx,ny", "$nx, $ny")
-                        val nx = "55"
-                        val ny = "127"
+//                        val nx = "55"
+//                        val ny = "127"
 
                         setWeather(nx, ny, dbWeather, cal, baseDate, baseD1, baseD2)
-                        setDust(baseDate,
-                            contextDB,
-                            dbDust)
+                        setDust(
+                            baseDate,
+                            baseD1,
+                            dbDust
+                        )
+
+                        CoroutineScope(Dispatchers.IO).launch {
+                            dbRegion.RegDao().clearAll()
+                            inputStream.bufferedReader().readLines().forEach {
+                                val token = it.split("\t")
+                                val input = RegionRoomClass(
+                                    token[0].toLong(),
+                                    token[1],
+                                    token[2],
+                                    token[3],
+                                    token[4].toInt(),
+                                    token[5].toInt(),
+                                    if (token[12].isEmpty()) null else token[12].toDouble(),
+                                    if (token[13].isEmpty()) null else token[13].toDouble(),
+                                    if (token[12].isEmpty()) null else {
+                                        getEuclidianDistance(
+                                            nowRegionData.nx,
+                                            nowRegionData.ny,
+                                            token[13].toDouble(),
+                                            token[12].toDouble()
+                                        )
+                                    }
+                                )
+                                dbRegion.RegDao().insertAll(input)
+                            }
+                        }
                     }
                 }.addOnFailureListener {
                     Log.d("loc fail", it.toString())
@@ -407,29 +479,8 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             )
         }
     }
-
-    val assetManager: AssetManager = contextDB.assets
-    val inputStream: InputStream = assetManager.open("KoreaRegion.txt")
-
-    LaunchedEffect(key1 = Unit) {
-        withContext(Dispatchers.IO) {
-            dbRegion.RegDao().clearAll()
-            inputStream.bufferedReader().readLines().forEach {
-                val token = it.split("\t")
-                val input = KoreanRegionClass(
-                    token[0].toLong(),
-                    token[1],
-                    token[2],
-                    token[3],
-                    token[4].toInt(),
-                    token[5].toInt(),
-                    if (token[12].isEmpty()) null else token[12].toDouble(),
-                    if (token[13].isEmpty()) null else token[13].toDouble()
-                )
-                dbRegion.RegDao().insertAll(input)
-            }
-        }
-    }
+    val reg2 = dbRegion.RegDao().getRegion2().collectAsState(initial = "서울").value ?: "서울"
+    val dustReg = getRegion(reg2)
 
     val mainScreenData by remember {
         mutableStateOf(
@@ -440,24 +491,53 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         mutableStateOf(false)
     }
 
+
     if (todaySwitchCheck) {
         mainScreenData.viewRain =
-            dbWeather.userDao().getRainMaxD1().collectAsState(initial = -1).value.toString()
+            dbWeather.userDao().getRainMaxD1().collectAsState(initial = -999).value.toString()
         mainScreenData.viewTemp =
-            dbWeather.userDao().getTempAvgD1().collectAsState(initial = -1).value.toString()
+            dbWeather.userDao().getTempAvgD1().collectAsState(initial = -999).value.toString()
+        val dust1 = getDustGrade(
+            dbDust.DustDao().getDust10D1(baseD1, dustReg).collectAsState(initial = "").value
+        )
+        val dust2 = getDustGrade(
+            dbDust.DustDao().getDust25D1(baseD1, dustReg).collectAsState(initial = "").value
+        )
+        mainScreenData.viewDust = when {
+            dust1<=2 && dust2<=2 -> "좋음"
+            dust1>=3 && dust2>=3 -> "나쁨"
+            else -> mainScreenData.viewDust
+        }
         nowRegionData.baseDate = viewDateD1
         mainScreenData.dayCheck = "내일"
+        mainScreenData.imageDetail = R.drawable.tomorrow_detail_icon
     } else {
         mainScreenData.viewRain =
-            dbWeather.userDao().getRainMax().collectAsState(initial = -1).value.toString()
+            dbWeather.userDao().getRainMax().collectAsState(initial = -999).value.toString()
         mainScreenData.viewTemp =
-            dbWeather.userDao().getTempAvg().collectAsState(initial = -1).value.toString()
+            dbWeather.userDao().getTempAvg().collectAsState(initial = -999).value.toString()
+        val dust1 = getDustGrade(
+            dbDust.DustDao().getDust10(baseD1, dustReg).collectAsState(initial = "서울").value
+        ) ?: 0
+        val dust2 = getDustGrade(
+            dbDust.DustDao().getDust25(baseD1, dustReg).collectAsState(initial = "서울").value
+        ) ?: 0
+        mainScreenData.viewDust = when {
+            dust1<=2 && dust2<=2 -> "좋음"
+            dust1>=3 && dust2>=3 -> "나쁨"
+            else -> mainScreenData.viewDust
+        }
         nowRegionData.baseDate = viewDate
         mainScreenData.dayCheck = "오늘"
+        mainScreenData.imageDetail = R.drawable.today_details_icon
     }
 
-
     when {
+        mainScreenData.viewTemp.toInt() == -999 -> {
+            mainScreenData.imageTemp = mainScreenData.imageTemp
+            mainScreenData.textTemp = mainScreenData.textTemp
+        }
+
         mainScreenData.viewTemp.toInt() >= 25 -> {
             mainScreenData.imageTemp = R.drawable.hot_penguin
             mainScreenData.textTemp = "얇은 옷을 입어요!"
@@ -470,6 +550,11 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     }
 
     when {
+        mainScreenData.viewRain.toInt() == -999 -> {
+            mainScreenData.imageRain = mainScreenData.imageRain
+            mainScreenData.textRain = mainScreenData.textRain
+        }
+
         mainScreenData.viewRain.toInt() >= 70 -> {
             mainScreenData.imageRain = R.drawable.rainy_cat
             mainScreenData.textRain = "우산이 필요할 수 있어요!"
@@ -481,8 +566,25 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         }
     }
 
-    nowRegionData.regionNameNow = dbRegion.RegDao()
-        .getNearestRegion(nowRegionData.nx, nowRegionData.ny)
+    when {
+        mainScreenData.viewDust == "" -> {
+            mainScreenData.imageRain = mainScreenData.imageRain
+            mainScreenData.textRain = mainScreenData.textRain
+        }
+
+        mainScreenData.viewDust == "좋음" -> {
+            mainScreenData.imageDust = R.drawable.gooddust_bear
+            mainScreenData.textDust = "피크닉해도 되겠어요!"
+        }
+
+        mainScreenData.viewDust == "나쁨" -> {
+            mainScreenData.imageDust = R.drawable.baddust_bear
+            mainScreenData.textDust = "마스크가 필요해요!"
+        }
+    }
+
+
+    nowRegionData.regionNameNow = dbRegion.RegDao().getRegionWithMinEuclidian()
         .collectAsState(
             initial = "위치를 불러올 수 없습니다."
         ).value ?: "Loading.."
@@ -497,7 +599,8 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         mainScreenData.textTemp,
         todaySwitchCheck,
         onCheckedChange = {
-            todaySwitchCheck = it },
+            todaySwitchCheck = it
+        },
         onReloadClickSuccess = {
             fusedLocationClient.lastLocation
                 .addOnSuccessListener { location ->
@@ -516,7 +619,11 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                 }.addOnFailureListener {
                     Log.d("loc", it.toString())
                 }
-        })
+        },
+        mainScreenData.imageDetail,
+        mainScreenData.imageDust,
+        mainScreenData.textDust
+    )
 }
 
 @Composable
@@ -530,7 +637,10 @@ fun MainScreen(
     textTemp: String,
     todaySwitchCheck: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    onReloadClickSuccess: () -> Unit
+    onReloadClickSuccess: () -> Unit,
+    imageDetail: Int,
+    imageDust: Int,
+    textDust: String
 ) {
     Column(
         modifier = Modifier
@@ -539,13 +649,15 @@ fun MainScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.size(30.dp))
-        Box(modifier = Modifier
-            .size(width = 200.dp, height = 50.dp)
-            .background(
-                color = Color(0xff19abe0),
-                shape = RoundedCornerShape(20.dp)
-            ),
-            contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(width = 200.dp, height = 50.dp)
+                .background(
+                    color = Color(0xff19abe0),
+                    shape = RoundedCornerShape(20.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
                 text = baseDate,
                 fontSize = 20.sp,
@@ -554,13 +666,15 @@ fun MainScreen(
             )
         }
         Spacer(modifier = Modifier.size(15.dp))
-        Box(modifier = Modifier
-            .size(width = 300.dp, height = 50.dp)
-            .background(
-                color = Color(0xff61ccf2),
-                shape = RoundedCornerShape(20.dp)
-            ),
-            contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(width = 300.dp, height = 50.dp)
+                .background(
+                    color = Color(0xff61ccf2),
+                    shape = RoundedCornerShape(20.dp)
+                ),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
                 text = regionNameNow,
                 fontSize = 16.sp,
@@ -607,8 +721,8 @@ fun MainScreen(
                         .padding(10.dp)
                 )
                 IconBox(
-                    imageID = R.drawable.cold_penguin,
-                    describeText = "mask",
+                    imageID = imageDust,
+                    describeText = textDust,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -629,7 +743,7 @@ fun MainScreen(
                         .padding(10.dp)
                 )
                 IconBox(
-                    imageID = R.drawable.details_icon,
+                    imageID = imageDetail,
                     describeText = "상세보기",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -661,8 +775,10 @@ fun IconBox(imageID: Int, describeText: String, modifier: Modifier = Modifier) {
 //            contentScale =  ContentScale.FillWidth
         )
         Spacer(modifier = Modifier.size(10.dp))
-        Text(text = describeText,
-            fontSize = 13.sp)
+        Text(
+            text = describeText,
+            fontSize = 13.sp
+        )
     }
 }
 
@@ -680,6 +796,10 @@ fun MainPreview() {
             "",
             true,
             {},
-            {})
+            {},
+            R.drawable.today_details_icon,
+            R.drawable.gooddust_bear,
+            ""
+        )
     }
 }

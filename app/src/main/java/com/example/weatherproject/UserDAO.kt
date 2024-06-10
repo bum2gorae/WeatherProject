@@ -54,40 +54,52 @@ interface UserDao {
     }
 
     @Query("SELECT AVG(`temp`) FROM WeatherRoomClass WHERE fcstDate = baseDate")
-    fun getTempAvg() : Flow<Int>
+    fun getTempAvg(): Flow<Int>
 
     @Query("SELECT AVG(`temp`) FROM WeatherRoomClass WHERE fcstDate = `baseD+1`")
-    fun getTempAvgD1() : Flow<Int>
+    fun getTempAvgD1(): Flow<Int>
 
     @Query("SELECT AVG(`temp`) FROM WeatherRoomClass WHERE fcstDate = `baseD+2`")
-    fun getTempAvgD2() : Flow<Int>
+    fun getTempAvgD2(): Flow<Int>
 
     @Query("SELECT MAX(rainRatio) FROM WeatherRoomClass WHERE fcstDate = baseDate")
-    fun getRainMax() : Flow<Int>
+    fun getRainMax(): Flow<Int>
 
     @Query("SELECT MAX(rainRatio) FROM WeatherRoomClass WHERE fcstDate = `baseD+1`")
-    fun getRainMaxD1() : Flow<Int>
+    fun getRainMaxD1(): Flow<Int>
 
     @Query("SELECT MAX(rainRatio) FROM WeatherRoomClass WHERE fcstDate = `baseD+2`")
-    fun getRainMaxD2() : Flow<Int>
+    fun getRainMaxD2(): Flow<Int>
 
 }
 
 @Dao
 interface RegDao {
     @Insert
-    fun insertAll(vararg users: KoreanRegionClass)
+    fun insertAll(vararg users: RegionRoomClass)
 
-    @Query("DELETE FROM KoreanRegionClass")
+    @Query("DELETE FROM RegionRoomClass")
     fun clearAll()
 
-    @Query("""
-        SELECT (regName1 || ' ' || regName2 || ' ' || regName3) as combinedNames
-        FROM KoreanRegionClass
-        ORDER BY ((CAST(rawX AS DOUBLE) - :nx) * (CAST(rawX AS DOUBLE) - :nx) + (CAST(rawY AS DOUBLE) - :ny) * (CAST(rawY AS DOUBLE) - :ny)) ASC
+    @Query(
+        """
+        SELECT regName1 || ' ' || regName2 || ' ' || regName3 AS combinedNames 
+        FROM RegionRoomClass 
+        ORDER BY Euclidian ASC 
         LIMIT 1
-    """)
-    fun getNearestRegion(nx: Double, ny: Double): Flow<String>
+    """
+    )
+    fun getRegionWithMinEuclidian(): Flow<String>
+
+    @Query(
+        """
+        SELECT regName2
+        FROM RegionRoomClass 
+        ORDER BY Euclidian ASC 
+        LIMIT 1
+    """
+    )
+    fun getRegion2(): Flow<String>
 }
 
 @Dao
@@ -98,17 +110,29 @@ interface DustDao {
     @Query("DELETE FROM DustRoomClass")
     fun clearAll()
 
-    fun insertDustFactors(vararg dustFactor: DustFactor) {
-        val dustRoomClass = dustFactor.map { dustFactor ->
+    fun insertDustFactors(vararg dustFactors: DustFactor) {
+        val dustRoomClass = dustFactors.map { dustFactor ->
             DustRoomClass(
                 basedate = dustFactor.baseDate,
                 baseD1 = dustFactor.baseD1,
+                informCode = dustFactor.informCode,
                 informRegion = dustFactor.informRegion,
                 informGrade = dustFactor.informGrade,
-                informDate = dustFactor.informDate,
-                informD1 = dustFactor.informD1
+                informData = dustFactor.informDate
             )
         }
         insertAll(*dustRoomClass.toTypedArray())
     }
+
+    @Query("SELECT informGrade FROM DustRoomClass WHERE informData=:baseDate AND informRegion=:region AND informCode='PM10'")
+    fun getDust10(baseDate: String, region: String): Flow<String>
+
+    @Query("SELECT informGrade FROM DustRoomClass WHERE informData=:baseD1 AND informRegion=:region AND informCode='PM10'")
+    fun getDust10D1(baseD1: String, region: String): Flow<String>
+
+    @Query("SELECT informGrade FROM DustRoomClass WHERE informData=:baseDate AND informRegion=:region AND informCode='PM25'")
+    fun getDust25(baseDate: String, region: String): Flow<String>
+
+    @Query("SELECT informGrade FROM DustRoomClass WHERE informData=:baseD1 AND informRegion=:region AND informCode='PM25'")
+    fun getDust25D1(baseD1: String, region: String): Flow<String>
 }

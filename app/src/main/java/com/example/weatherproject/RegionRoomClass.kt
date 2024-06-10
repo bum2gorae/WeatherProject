@@ -5,7 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity
-data class KoreanRegionClass(
+data class RegionRoomClass(
     @PrimaryKey(autoGenerate = true) val uid: Long = 0,
     @ColumnInfo(name = "regName1") val regName1: String,
     @ColumnInfo(name = "regName2") val regName2: String,
@@ -13,5 +13,6 @@ data class KoreanRegionClass(
     @ColumnInfo(name = "regX") val regX: Int,
     @ColumnInfo(name = "regY") val regY: Int,
     @ColumnInfo(name = "rawX") val rawX: Double?,
-    @ColumnInfo(name = "rawY") val rawY: Double?
+    @ColumnInfo(name = "rawY") val rawY: Double?,
+    @ColumnInfo(name = "Euclidian") val euclidian: Double?,
 )

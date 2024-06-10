@@ -3,6 +3,8 @@ package com.example.weatherproject
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.res.ResourcesCompat
 import com.google.gson.annotations.SerializedName
 
 // JSON Parsing
@@ -68,9 +70,11 @@ data class Dustbody(
 )
 
 data class DustItem(
-    @SerializedName("imformData")
+    @SerializedName("informCode")
+    val DustInformCode: String,
+    @SerializedName("informData")
     val DustInformData: String,
-    @SerializedName("imformGrade")
+    @SerializedName("informGrade")
     val DustInformGrade: String
 )
 
@@ -96,11 +100,15 @@ data class ForecastFactor(
 class MainScreenData() {
     var viewRain: String = ""
     var viewTemp: String = ""
-    var imageRain: Int = 0
+    var imageRain: Int = R.drawable.transparent
     var textRain: String = ""
-    var imageTemp: Int = 0
+    var imageTemp: Int = R.drawable.transparent
     var textTemp: String = ""
     var dayCheck: String = ""
+    var imageDetail : Int = R.drawable.transparent
+    var viewDust: String = ""
+    var imageDust: Int = R.drawable.transparent
+    var textDust: String = ""
 }
 
 // 지역 Data용 class
@@ -116,8 +124,10 @@ class RegionData(
 data class DustFactor(
     val baseDate: String,
     val baseD1 : String,
-    val informRegion: String,
-    val informGrade: String,
-    val informDate: String,
-    val informD1: String
+    val informCode: String?,
+    val informRegion: String?,
+    val informGrade: String?,
+    val informDate: String?
 )
+
+//data class DustDataParsing

@@ -24,7 +24,7 @@ abstract class AppDatabase : RoomDatabase() {
     }
 }
 
-@Database(entities = [KoreanRegionClass::class], version = 1)
+@Database(entities = [RegionRoomClass::class], version = 1)
 abstract class AppDatabaseReg : RoomDatabase() {
     abstract fun RegDao(): RegDao
 
