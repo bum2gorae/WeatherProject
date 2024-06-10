@@ -130,4 +130,9 @@ data class DustFactor(
     val informDate: String?
 )
 
-//data class DustDataParsing
+data class WeatherDetails(
+    val fcstTime: String,
+    val fcstDate: String,
+    var rainRatio: Int,
+    var temp: Int
+)

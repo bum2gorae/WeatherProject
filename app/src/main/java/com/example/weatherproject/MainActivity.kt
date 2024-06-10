@@ -1,7 +1,9 @@
 package com.example.weatherproject
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.AssetManager
 import android.os.Bundle
@@ -13,6 +15,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -208,7 +211,7 @@ fun setWeather(
     // 날씨 정보 가져오기
     // (응답 자료 형식-"JSON", 한 페이지 결과 수 = 10, 페이지 번호 = 1, 발표 날싸, 발표 시각, 예보지점 좌표)
     val call = ApiObject.retrofitService.getWeather(
-        1,
+        400,
         1,
         "JSON",
         baseDate,
@@ -354,6 +357,7 @@ fun getXY(xInput: Double, yInput: Double): Pair<String, String> {
 
 @Composable
 fun Main(fusedLocationClient: FusedLocationProviderClient) {
+    val context = LocalContext.current as Activity?
     val contextDB = LocalContext.current
     val dbWeather = remember {
         AppDatabase.getDatabase(contextDB)
@@ -429,10 +433,10 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                         nowRegionData.ny = it.longitude
                         // 위치를 사용하여 필요한 작업 수행
                         Log.d("loc", "${nowRegionData.nx}, ${nowRegionData.ny}")
-                        val (nx, ny) = getXY(it.latitude, it.longitude)
+//                        val (nx, ny) = getXY(it.latitude, it.longitude)
 //                        Log.d("nx,ny", "$nx, $ny")
-//                        val nx = "55"
-//                        val ny = "127"
+                        val nx = "55"
+                        val ny = "127"
 
                         setWeather(nx, ny, dbWeather, cal, baseDate, baseD1, baseD2)
                         setDust(
@@ -523,7 +527,8 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             dbDust.DustDao().getDust25(baseD1, dustReg).collectAsState(initial = "서울").value
         ) ?: 0
         mainScreenData.viewDust = when {
-            dust1<=2 && dust2<=2 -> "좋음"
+            dust1==1 && dust2==1 -> "좋음"
+            dust1<=2 && dust2<=2 -> "보통"
             dust1>=3 && dust2>=3 -> "나쁨"
             else -> mainScreenData.viewDust
         }
@@ -543,7 +548,12 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             mainScreenData.textTemp = "얇은 옷을 입어요!"
         }
 
-        mainScreenData.viewTemp.toInt() < 25 -> {
+        mainScreenData.viewTemp.toInt() in 15 until 25 -> {
+            mainScreenData.imageTemp = R.drawable.normal_penguin
+            mainScreenData.textTemp = "거의 봄날씨에요!"
+        }
+
+        mainScreenData.viewTemp.toInt() < 15 -> {
             mainScreenData.imageTemp = R.drawable.cold_penguin
             mainScreenData.textTemp = "옷을 따뜻하게 입어요!"
         }
@@ -575,6 +585,11 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         mainScreenData.viewDust == "좋음" -> {
             mainScreenData.imageDust = R.drawable.gooddust_bear
             mainScreenData.textDust = "피크닉해도 되겠어요!"
+        }
+
+        mainScreenData.viewDust == "보통" -> {
+            mainScreenData.imageDust = R.drawable.normaldust_bear
+            mainScreenData.textDust = "나쁘지 않지만 조심해요!"
         }
 
         mainScreenData.viewDust == "나쁨" -> {
@@ -622,7 +637,13 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         },
         mainScreenData.imageDetail,
         mainScreenData.imageDust,
-        mainScreenData.textDust
+        mainScreenData.textDust,
+        context,
+        onDetailClickSuccess = {
+            val intent = Intent(it, DetailActivity::class.java)
+            intent.putExtra("region", nowRegionData.regionNameNow)
+            it?.startActivity(intent)
+        }
     )
 }
 
@@ -640,7 +661,9 @@ fun MainScreen(
     onReloadClickSuccess: () -> Unit,
     imageDetail: Int,
     imageDust: Int,
-    textDust: String
+    textDust: String,
+    context: Activity?,
+    onDetailClickSuccess: (Activity?) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -749,6 +772,9 @@ fun MainScreen(
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(10.dp)
+                        .clickable {
+                            onDetailClickSuccess(context)
+                        }
                 )
             }
             Spacer(modifier = Modifier.size(20.dp))
@@ -799,7 +825,9 @@ fun MainPreview() {
             {},
             R.drawable.today_details_icon,
             R.drawable.gooddust_bear,
-            ""
+            "",
+            Activity(),
+            {}
         )
     }
 }

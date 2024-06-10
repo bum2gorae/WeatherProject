@@ -18,6 +18,9 @@ interface UserDao {
     @Query("SELECT * FROM WeatherRoomClass")
     fun getAll(): Flow<List<WeatherRoomClass>>
 
+    @Query("SELECT fcstDate, fcstTime, `temp`, rainRatio FROM WeatherRoomClass")
+    fun getAllDetails(): Flow<List<WeatherDetails>>
+
     @Query("SELECT * FROM WeatherRoomClass WHERE uid IN (:userIds)")
     fun loadAllByIds(userIds: IntArray): Flow<List<WeatherRoomClass>>
 
