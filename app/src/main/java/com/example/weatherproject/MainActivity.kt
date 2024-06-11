@@ -56,6 +56,7 @@ import com.airbnb.lottie.compose.LottieClipSpec
 import com.airbnb.lottie.compose.LottieCompositionSpec
 import com.airbnb.lottie.compose.rememberLottieAnimatable
 import com.airbnb.lottie.compose.rememberLottieComposition
+import com.example.weatherproject.WeatherAPI.setWeather
 import com.example.weatherproject.ui.theme.WeatherProjectTheme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -102,18 +103,6 @@ private fun checkLocationPermission(context: Context): Boolean {
     ) != PackageManager.PERMISSION_GRANTED)
 }
 
-// retrofit builder & object for 기상청
-private val retrofit = Retrofit.Builder()
-    .baseUrl("http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/")
-    .addConverterFactory(GsonConverterFactory.create())
-    .build()
-
-object ApiObject {
-    val retrofitService: WeatherIF by lazy {
-        retrofit.create(WeatherIF::class.java)
-    }
-}
-
 // retrofit builder & object for 미세먼지
 private val retrofitD = Retrofit.Builder()
     .baseUrl("http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/")
@@ -134,9 +123,7 @@ object ApiobjectD {
 @Composable
 fun Main(fusedLocationClient: FusedLocationProviderClient) {
     val contextDB = LocalContext.current
-    val dbWeather = remember {
-        AppDatabase.getDatabase(contextDB)
-    }
+
     val dbRegion = remember {
         AppDatabaseReg.getDatabase(contextDB)
     }
@@ -193,12 +180,8 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                         nowRegionData.ny = it.longitude
                         // 위치를 사용하여 필요한 작업 수행
                         Log.d("loc", "${nowRegionData.nx}, ${nowRegionData.ny}")
-                        val (nx, ny) = getXY(it.latitude, it.longitude)
-//                        Log.d("nx,ny", "$nx, $ny")
-//                        val nx = "55"
-//                        val ny = "127"
 
-                        setWeather(nx, ny, dbWeather, cal, baseDate, baseD1, baseD2)
+                        setWeather(nowRegionData.nx, nowRegionData.ny, cal, baseDate, baseD1, baseD2, contextDB)
                         setDust(
                             baseDate,
                             baseD1,
@@ -428,9 +411,11 @@ fun MainScreen(
                 .appendLiteral("일")
                 .toFormatter(Locale.KOREA)
             Text(
-                text = now.apply {
+                text = now.let {
                     if (todaySwitchCheck) {
-                        plusDays(1)
+                        it.plusDays(1)
+                    } else {
+                        it
                     }
                 }.format(dateTimeFormatter),
                 fontSize = 20.sp,
