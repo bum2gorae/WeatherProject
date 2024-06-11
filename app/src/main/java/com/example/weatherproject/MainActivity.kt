@@ -13,11 +13,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,13 +37,18 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -46,12 +57,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieClipSpec
+import com.airbnb.lottie.compose.LottieCompositionSpec
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
+import com.airbnb.lottie.compose.rememberLottieAnimatable
+import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.weatherproject.ui.theme.WeatherProjectTheme
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -211,7 +231,7 @@ fun setWeather(
     // 날씨 정보 가져오기
     // (응답 자료 형식-"JSON", 한 페이지 결과 수 = 10, 페이지 번호 = 1, 발표 날싸, 발표 시각, 예보지점 좌표)
     val call = ApiObject.retrofitService.getWeather(
-        400,
+        4,
         1,
         "JSON",
         baseDate,
@@ -353,6 +373,27 @@ fun getXY(xInput: Double, yInput: Double): Pair<String, String> {
     Log.d("fin loc", "$xOut, $yOut")
 
     return Pair(xOut.toString(), yOut.toString())
+}
+
+interface LottieAnimationState : State<Float>
+
+@Composable
+fun Loader(onSwitch: Boolean) {
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lotte_json1))
+    val progress by animateLottieCompositionAsState(
+        composition,
+        clipSpec = LottieClipSpec.Progress(0f, 1f)
+    )
+    val lottieAnimatable = rememberLottieAnimatable()
+    LaunchedEffect(key1 = composition, key2 = onSwitch) {
+        lottieAnimatable.animate(
+            composition = composition,
+            clipSpec = LottieClipSpec.Progress(0f, 1f),
+            initialProgress = 0f
+        )
+    }
+    LottieAnimation(composition = composition,
+        progress = { lottieAnimatable.progress })
 }
 
 @Composable
@@ -508,8 +549,8 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             dbDust.DustDao().getDust25D1(baseD1, dustReg).collectAsState(initial = "").value
         )
         mainScreenData.viewDust = when {
-            dust1<=2 && dust2<=2 -> "좋음"
-            dust1>=3 && dust2>=3 -> "나쁨"
+            dust1 <= 2 && dust2 <= 2 -> "좋음"
+            dust1 >= 3 && dust2 >= 3 -> "나쁨"
             else -> mainScreenData.viewDust
         }
         nowRegionData.baseDate = viewDateD1
@@ -527,15 +568,21 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             dbDust.DustDao().getDust25(baseD1, dustReg).collectAsState(initial = "서울").value
         ) ?: 0
         mainScreenData.viewDust = when {
-            dust1==1 && dust2==1 -> "좋음"
-            dust1<=2 && dust2<=2 -> "보통"
-            dust1>=3 && dust2>=3 -> "나쁨"
+            dust1 == 1 && dust2 == 1 -> "좋음"
+            dust1 <= 2 && dust2 <= 2 -> "보통"
+            dust1 >= 3 && dust2 >= 3 -> "나쁨"
             else -> mainScreenData.viewDust
         }
         nowRegionData.baseDate = viewDate
         mainScreenData.dayCheck = "오늘"
         mainScreenData.imageDetail = R.drawable.today_details_icon
     }
+
+    var isFlipped by remember { mutableStateOf(false) }
+    val scaleX by animateFloatAsState(
+        targetValue = if (isFlipped) -1f else 1f,
+        animationSpec = tween(durationMillis = 1000), label = "flip"
+    )
 
     when {
         mainScreenData.viewTemp.toInt() == -999 -> {
@@ -598,7 +645,6 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         }
     }
 
-
     nowRegionData.regionNameNow = dbRegion.RegDao().getRegionWithMinEuclidian()
         .collectAsState(
             initial = "위치를 불러올 수 없습니다."
@@ -615,8 +661,10 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         todaySwitchCheck,
         onCheckedChange = {
             todaySwitchCheck = it
+            isFlipped = it
         },
         onReloadClickSuccess = {
+            isFlipped = !isFlipped
             fusedLocationClient.lastLocation
                 .addOnSuccessListener { location ->
                     // 위치가 null이 아닌 경우
@@ -635,7 +683,6 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                     Log.d("loc", it.toString())
                 }
         },
-        mainScreenData.imageDetail,
         mainScreenData.imageDust,
         mainScreenData.textDust,
         context,
@@ -643,7 +690,9 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             val intent = Intent(it, DetailActivity::class.java)
             intent.putExtra("region", nowRegionData.regionNameNow)
             it?.startActivity(intent)
-        }
+        },
+        scaleX,
+        lottieInsert = { Loader(isFlipped) }
     )
 }
 
@@ -659,11 +708,12 @@ fun MainScreen(
     todaySwitchCheck: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     onReloadClickSuccess: () -> Unit,
-    imageDetail: Int,
     imageDust: Int,
     textDust: String,
     context: Activity?,
-    onDetailClickSuccess: (Activity?) -> Unit
+    onDetailClickSuccess: (Activity?) -> Unit,
+    scaleX: Float,
+    lottieInsert: @Composable () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -705,25 +755,49 @@ fun MainScreen(
                 color = Color.White
             )
         }
-        Spacer(modifier = Modifier.size(10.dp))
+        Spacer(modifier = Modifier.size(20.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(10.dp),
             horizontalArrangement = Arrangement.End
         ) {
-            Text(
-                text = dayCheck,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(8.dp)
-            )
-            Spacer(modifier = Modifier.size(15.dp))
-            Switch(
-                checked = todaySwitchCheck,
-                onCheckedChange = { onCheckedChange(it) },
-                enabled = true
+            Row(
+                modifier = Modifier
+                    .background(
+                        color = if (dayCheck == "오늘") {
+                            Color(0xffcaf5fc)
+                        } else {
+                            Color(0xffa7badb)
+                        },
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .size(width = 120.dp, height = 45.dp)
+                    .border(
+                        BorderStroke(
+                            2.dp, color = if (dayCheck == "오늘") {
+                                Color(0xff99d8e0)
+                            } else {
+                                Color(0xff5f6e87)
+                            }
+                        ),
+                        shape = RoundedCornerShape(20.dp)
+                    )
+                    .padding(start = 8.dp, end = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                Text(
+                    text = dayCheck,
+                    fontSize = 20.sp
+                )
+                Switch(
+                    checked = todaySwitchCheck,
+                    onCheckedChange = { onCheckedChange(it) },
+                    enabled = true
 //                colors = SwitchDefaults.colors()
-            )
+                )
+            }
         }
         //Grid
         Column(
@@ -741,7 +815,8 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(10.dp)
+                        .padding(10.dp),
+                    scaleX
                 )
                 IconBox(
                     imageID = imageDust,
@@ -749,7 +824,8 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(10.dp)
+                        .padding(10.dp),
+                    scaleX
                 )
             }
             Spacer(modifier = Modifier.size(10.dp))
@@ -763,19 +839,36 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(10.dp)
+                        .padding(10.dp),
+                    scaleX
                 )
-                IconBox(
-                    imageID = imageDetail,
-                    describeText = "상세보기",
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
                         .padding(10.dp)
-                        .clickable {
-                            onDetailClickSuccess(context)
+                ) {
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    ) {
+                        val boxSize = maxWidth
+                        Box(modifier = Modifier
+                            .size(boxSize)
+                            .clickable {
+                                onDetailClickSuccess(context)
+                            },
+                            contentAlignment = Alignment.Center) {
+                            lottieInsert()
                         }
-                )
+                    }
+                    Spacer(modifier = Modifier.size(10.dp))
+                    Text(
+                        text = "상세보기",
+                        fontSize = 13.sp
+                    )
+                }
             }
             Spacer(modifier = Modifier.size(20.dp))
             Button(onClick = {
@@ -790,7 +883,12 @@ fun MainScreen(
 }
 
 @Composable
-fun IconBox(imageID: Int, describeText: String, modifier: Modifier = Modifier) {
+fun IconBox(
+    imageID: Int,
+    describeText: String,
+    modifier: Modifier = Modifier,
+    scaleX: Float
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -798,6 +896,7 @@ fun IconBox(imageID: Int, describeText: String, modifier: Modifier = Modifier) {
         Image(
             painter = painterResource(id = imageID),
             contentDescription = "test",
+            modifier = Modifier.scale(scaleX = scaleX, scaleY = 1F)
 //            contentScale =  ContentScale.FillWidth
         )
         Spacer(modifier = Modifier.size(10.dp))
@@ -808,26 +907,28 @@ fun IconBox(imageID: Int, describeText: String, modifier: Modifier = Modifier) {
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun MainPreview() {
-    WeatherProjectTheme {
-        MainScreen(
-            "2024년 6월 9일",
-            "서울특별시 도봉구 도봉제1동",
-            "오늘",
-            R.drawable.sunny_cat,
-            "",
-            R.drawable.hot_penguin,
-            "",
-            true,
-            {},
-            {},
-            R.drawable.today_details_icon,
-            R.drawable.gooddust_bear,
-            "",
-            Activity(),
-            {}
-        )
-    }
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun MainPreview() {
+//    WeatherProjectTheme {
+//        MainScreen(
+//            "2024년 6월 9일",
+//            "서울특별시 도봉구 도봉제1동",
+//            "오늘",
+//            R.drawable.sunny_cat,
+//            "",
+//            R.drawable.hot_penguin,
+//            "",
+//            true,
+//            {},
+//            {},
+//            R.drawable.today_details_icon,
+//            R.drawable.gooddust_bear,
+//            "",
+//            Activity(),
+//            {},
+//            0F,
+//            {}
+//        )
+//    }
+//}

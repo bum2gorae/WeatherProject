@@ -83,4 +83,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.4")
 
     implementation ("com.google.android.gms:play-services-location:21.0.1")
+
+    val lottieVersion = "6.4.1"
+    implementation ("com.airbnb.android:lottie-compose:$lottieVersion")
 }
