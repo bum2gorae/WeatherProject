@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
+// 위치권한 Check
 private fun checkLocationPermission(context: Context): Boolean {
     return !(ActivityCompat.checkSelfPermission(
         context,
@@ -121,13 +121,19 @@ private fun checkLocationPermission(context: Context): Boolean {
     ) != PackageManager.PERMISSION_GRANTED)
 }
 
-// retrofit을 사용하기 위한 빌더 생성
+// retrofit builder & object for 기상청
 private val retrofit = Retrofit.Builder()
     .baseUrl("http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/")
     .addConverterFactory(GsonConverterFactory.create())
     .build()
 
-// retrofit을 사용하기 위한 빌더 생성
+object ApiObject {
+    val retrofitService: WeatherIF by lazy {
+        retrofit.create(WeatherIF::class.java)
+    }
+}
+
+// retrofit builder & object for 미세먼지
 private val retrofitD = Retrofit.Builder()
     .baseUrl("http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/")
     .addConverterFactory(GsonConverterFactory.create(GsonBuilder().setLenient().create()))
@@ -138,262 +144,10 @@ private val retrofitD = Retrofit.Builder()
     )
     .build()
 
-object ApiObject {
-    val retrofitService: WeatherIF by lazy {
-        retrofit.create(WeatherIF::class.java)
-    }
-}
-
 object ApiobjectD {
     val retrofitServiceDust: DustIF by lazy {
         retrofitD.create(DustIF::class.java)
     }
-}
-
-fun setDust(
-    baseDate: String,
-    baseD1: String,
-    db: AppDatabaseDust
-) {
-    val baseDateFactor =
-        listOf(baseDate.substring(0, 4), baseDate.substring(4, 6), baseDate.substring(6, 8))
-    val baseDateDust = baseDateFactor.joinToString("-")
-    Log.d("baseDateD", baseDateDust)
-    val callDust = ApiobjectD.retrofitServiceDust.getDust(
-        baseDateDust,
-        "JSON",
-        "Z+VGgQxuJdpbHl7FH1zN/Aa3LNv6M4Vyh0VHh6+aY6YN1u7+NQRX/M4A1PuZlx8uVUP4FEd6dODHdZ8Ikg494w==",
-        50,
-        1
-    )
-
-    callDust.enqueue(object : Callback<DustParsingClass> {
-        override fun onResponse(
-            call: Call<DustParsingClass>,
-            response: Response<DustParsingClass>
-        ) {
-            if (response.isSuccessful) {
-                Log.d("dust api Success", baseDateDust)
-                val scope = CoroutineScope(Dispatchers.IO)
-
-                scope.launch {
-                    val roomInputD = mutableMapOf<String, String>()
-                    db.DustDao().clearAll()
-                    response.body()!!.Dustresponse.Dustbody.DustItem.forEach { dustItem ->
-                        if (dustItem.DustInformCode == "PM25" || dustItem.DustInformCode == "PM10") {
-                            val rawInformGrade =
-                                dustItem.DustInformGrade.split(",").map { rawInform ->
-                                    val parts = rawInform.split(":")
-                                    parts[0].trim() to parts[1].trim()
-                                }.toMap()
-                            roomInputD.putAll(rawInformGrade)
-                            roomInputD.forEach { roomInputFactor ->
-                                val inputData = DustFactor(
-                                    baseDate,
-                                    baseD1,
-                                    dustItem.DustInformCode,
-                                    roomInputFactor.key,
-                                    roomInputFactor.value,
-                                    dustItem.DustInformData
-                                )
-                                db.DustDao().insertDustFactors(inputData)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        override fun onFailure(call: Call<DustParsingClass>, t: Throwable) {
-            Log.e("dust api fail", t.message.toString())
-        }
-    })
-}
-
-fun setWeather(
-    nx: String,
-    ny: String,
-    db: AppDatabase,
-    cal: Calendar,
-    baseDate: String,
-    baseD1: String,
-    baseD2: String
-) {
-    val timeFormat = SimpleDateFormat("HH", Locale.KOREA)
-    timeFormat.timeZone = TimeZone.getTimeZone("Asia/Seoul")
-
-    val timeNow = timeFormat.format(cal.time) // 현재 시간
-    val baseTime = getTime(timeNow)
-    cal.add(Calendar.DATE, 1)
-
-    Log.d("data", "$baseTime, $baseDate")
-
-    // 날씨 정보 가져오기
-    // (응답 자료 형식-"JSON", 한 페이지 결과 수 = 10, 페이지 번호 = 1, 발표 날싸, 발표 시각, 예보지점 좌표)
-    val call = ApiObject.retrofitService.getWeather(
-        4,
-        1,
-        "JSON",
-        baseDate,
-        baseTime,
-        nx,
-        ny
-    )
-
-    call.enqueue(object : retrofit2.Callback<WeatherClass> {
-        // 응답 성공 시
-        override fun onResponse(call: Call<WeatherClass>, response: Response<WeatherClass>) {
-            if (response.isSuccessful) {
-                val scope = CoroutineScope(Dispatchers.IO)
-                scope.launch {
-                    val roomInput = mutableMapOf<String, ForecastFactor>()
-
-                    response.body()!!.response.body.items.item.forEach {
-                        roomInput[it.fcstDate + it.fcstTime] =
-                            roomInput.getOrDefault(
-                                key = it.fcstDate + it.fcstTime,
-                                defaultValue = ForecastFactor(
-                                    baseTime = baseTime,
-                                    baseDate = baseDate,
-                                    fcstTime = it.fcstTime,
-                                    fcstDate = it.fcstDate,
-                                    actNx = it.nx,
-                                    actNy = it.ny,
-                                    rainRatio = 0,
-                                    rainType = "",
-                                    humidity = 0,
-                                    sky = "",
-                                    temp = 0,
-                                    baseD1 = baseD1,
-                                    baseD2 = baseD2
-                                )
-                            ).apply {
-                                when (it.category) {
-                                    "POP" -> this.rainRatio = it.fcstValue.toInt()    // 강수 기온
-                                    "PTY" -> this.rainType = it.fcstValue     // 강수 형태
-                                    "REH" -> this.humidity = it.fcstValue.toInt()     // 습도
-                                    "SKY" -> this.sky = it.fcstValue      // 하늘 상태
-                                    "TMP" -> this.temp = it.fcstValue.toInt()  // 기온
-                                }
-                            }
-                    }
-                    db.userDao().clearAll()
-                    db.userDao().insertForecastFactors(
-                        *roomInput.map { it.value }.toTypedArray()
-                    )
-//                    roomInput.forEach {
-//                        db.userDao().insertForecastFactors(
-//                            it.value
-//                        )
-//                    }
-                    Log.d("onSuccess", "Success $baseTime")
-                    withContext(Dispatchers.Main) {
-                    }
-                }
-            }
-            return
-        }
-
-        // 응답 실패 시
-        override fun onFailure(call: Call<WeatherClass>, t: Throwable) {
-            Log.d("api fail", t.message.toString())
-        }
-    })
-}
-
-
-// 시간 설정하기
-// 동네 예보 API는 3시간마다 현재시각+4시간 뒤의 날씨 예보를 보여줌
-// 따라서 현재 시간대의 날씨를 알기 위해서는 아래와 같은 과정이 필요함. 자세한 내용은 함께 제공된 파일 확인
-fun getTime(time: String): String {
-    val result: String
-    when (time.toInt()) {
-        in 0..2 -> result = "2000"    // 00~02
-        in 3..5 -> result = "2300"    // 03~05
-        in 6..8 -> result = "0200"    // 06~08
-        in 9..11 -> result = "0500"    // 09~11
-        in 12..14 -> result = "0800"    // 12~14
-        in 15..17 -> result = "1100"    // 15~17
-        in 18..20 -> result = "1400"    // 18~20
-        else -> result = "1700"             // 21~23
-    }
-    return result
-}
-
-fun getEuclidianDistance(
-    x1: Double,
-    y1: Double,
-    x2: Double,
-    y2: Double
-): Double {
-    val result = Math.sqrt(((x1 - x2) * (x1 - x2)) + ((y1 - y2) * (y1 - y2)))
-    return result
-}
-
-//좌표변환 함수
-fun getXY(xInput: Double, yInput: Double): Pair<String, String> {
-    val Re = 6371.00877
-    val grid = 5.0
-    val slat1 = 30.0
-    val slat2 = 60.0
-    val olon = 126.0
-    val olat = 38.0
-    val xo = 43
-    val yo = 136
-
-
-    val Pi = Math.PI
-    val Degrad = Pi / 180.0
-
-    val re = Re / grid
-    val slat1Rad = slat1 * Degrad
-    val slat2Rad = slat2 * Degrad
-    val olonRad = olon * Degrad
-    val olatRad = olat * Degrad
-
-    var sn = tan(Math.PI * 0.25 + slat2Rad * 0.5) / tan(Math.PI * 0.25 + slat1Rad * 0.5)
-    sn = log(cos(slat1Rad) / cos(slat2Rad)) / log(sn)
-    var sf = tan(Math.PI * 0.25 + slat1Rad * 0.5)
-    sf = sf.pow(sn) * cos(slat1Rad) / sn
-    var ro = tan(Math.PI * 0.25 + olatRad * 0.5)
-    ro = re * sf / ro.pow(sn)
-    var ra = tan(Math.PI * 0.25 + xInput * Degrad * 0.5)
-    ra = re * sf / ra.pow(sn)
-    var theta = yInput * Degrad - olonRad
-    if (theta > Math.PI) theta -= 2.0 * Math.PI
-    if (theta < -Math.PI) theta += 2.0 * Math.PI
-    theta *= sn
-
-    val xOut = (ra * sin(theta) + xo + 0.5).toInt()
-    val yOut = (ro - ra * cos(theta) + yo + 0.5).toInt()
-
-
-
-
-    Log.d("fin loc", "$xOut, $yOut")
-
-    return Pair(xOut.toString(), yOut.toString())
-}
-
-interface LottieAnimationState : State<Float>
-
-@Composable
-fun Loader(onSwitch: Boolean) {
-    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lotte_json1))
-    val progress by animateLottieCompositionAsState(
-        composition,
-        clipSpec = LottieClipSpec.Progress(0f, 1f)
-    )
-    val lottieAnimatable = rememberLottieAnimatable()
-    LaunchedEffect(key1 = composition, key2 = onSwitch) {
-        lottieAnimatable.animate(
-            composition = composition,
-            clipSpec = LottieClipSpec.Progress(0f, 1f),
-            initialProgress = 0f
-        )
-    }
-    LottieAnimation(composition = composition,
-        progress = { lottieAnimatable.progress })
 }
 
 @Composable
@@ -410,11 +164,11 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         AppDatabaseDust.getDatabase(contextDB)
     }
     // 준비 단계 : base_date(발표 일자), base_time(발표 시각)
-// 현재 날짜, 시간 정보 가져오기
+    // 현재 날짜, 시간 정보 가져오기
     val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Seoul")).apply {
         if (time.hours <= 2) {
-//          동네예보  API는 3시간마다 현재시간+4시간 뒤의 날씨 예보를 알려주기 때문에
-//          현재 시각이 00시가 넘었다면 어제 예보한 데이터를 가져와야함
+    // 동네예보  API는 3시간마다 현재시간+4시간 뒤의 날씨 예보를 알려주기 때문에
+    // 현재 시각이 00시가 넘었다면 어제 예보한 데이터를 가져와야함
             add(Calendar.DATE, -1)
         }
     }
@@ -425,6 +179,7 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     cal.add(Calendar.DATE, 1)
     val baseD2 = baseDateFormat.format(cal.time)
 
+    // 미세먼지 data 변환
     val viewDateFormat = DateTimeFormatterBuilder()
         .appendPattern("yyyy년 ")
         .appendValue(ChronoField.MONTH_OF_YEAR)
@@ -436,9 +191,7 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     val nextDay = date.plusDays(1)
     val viewDate = date.format(viewDateFormat)
     baseDateFormat.timeZone = TimeZone.getTimeZone("Asia/Seoul")
-
     val viewDateD1 = nextDay.format(viewDateFormat)
-    cal.add(Calendar.DATE, 1)
 
     var hasPermission by remember { mutableStateOf(checkLocationPermission(contextDB)) }
     val locationPermissionRequest = rememberLauncherForActivityResult(
@@ -454,7 +207,6 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
                 false
             ) -> hasPermission = true
-
         }
     }
 
@@ -474,10 +226,10 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
                         nowRegionData.ny = it.longitude
                         // 위치를 사용하여 필요한 작업 수행
                         Log.d("loc", "${nowRegionData.nx}, ${nowRegionData.ny}")
-//                        val (nx, ny) = getXY(it.latitude, it.longitude)
+                        val (nx, ny) = getXY(it.latitude, it.longitude)
 //                        Log.d("nx,ny", "$nx, $ny")
-                        val nx = "55"
-                        val ny = "127"
+//                        val nx = "55"
+//                        val ny = "127"
 
                         setWeather(nx, ny, dbWeather, cal, baseDate, baseD1, baseD2)
                         setDust(
@@ -649,6 +401,8 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         .collectAsState(
             initial = "위치를 불러올 수 없습니다."
         ).value ?: "Loading.."
+
+    Log.d("viewtemp", mainScreenData.viewTemp)
 
     MainScreen(
         nowRegionData.baseDate,
@@ -842,7 +596,7 @@ fun MainScreen(
                         .padding(10.dp),
                     scaleX
                 )
-                Column(
+                Column( // Lottie Column
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -876,10 +630,8 @@ fun MainScreen(
             }) {
                 Text(text = "새로고침")
             }
-
         }
     }
-
 }
 
 @Composable
@@ -906,6 +658,22 @@ fun IconBox(
         )
     }
 }
+
+@Composable
+fun Loader(onSwitch: Boolean) {
+    val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lotte_json1))
+    val lottieAnimatable = rememberLottieAnimatable()
+    LaunchedEffect(key1 = composition, key2 = onSwitch) {
+        lottieAnimatable.animate(
+            composition = composition,
+            clipSpec = LottieClipSpec.Progress(0f, 1f),
+            initialProgress = 0f
+        )
+    }
+    LottieAnimation(composition = composition,
+        progress = { lottieAnimatable.progress })
+}
+
 
 //@Preview(showBackground = true)
 //@Composable

@@ -7,7 +7,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.res.ResourcesCompat
 import com.google.gson.annotations.SerializedName
 
-// JSON Parsing
+// 기상청 API JSON Parsing
 data class WeatherClass(
     @SerializedName("response")
     val response: Response
@@ -42,7 +42,7 @@ data class Body(
 
 data class Items(val item: List<Item>)
 
-// category : 자료 구분 코드, fcstDate : 예측 날짜, fcstTime : 예측 시간, fcstValue : 예보 값
+// category : 자료 구분 코드, fcstDate : 예측 날짜, fcstTime : 예측 시간, fcstValue : 예보 값, (nx ny) : grid좌표
 data class Item(
     val category: String,
     val fcstDate: String,
@@ -54,6 +54,7 @@ data class Item(
     val ny: Int
 )
 
+// 미세먼지 API JSON Parsing
 data class DustParsingClass(
     @SerializedName("response")
     val Dustresponse: DustResponse
@@ -79,7 +80,8 @@ data class DustItem(
 )
 
 
-// RoomInput용 class
+// Room input class
+// WeatherRoom input
 data class ForecastFactor(
     val baseTime: String,
     val baseDate: String,
@@ -96,7 +98,25 @@ data class ForecastFactor(
     val baseD2: String
 )
 
-// MainScreen용 class
+// RegionRoom input
+class RegionData(
+    var nx: Double,
+    var ny: Double,
+    var regionNameNow: String,
+    var baseDate: String
+)
+
+// DustRoom input
+data class DustFactor(
+    val baseDate: String,
+    val baseD1 : String,
+    val informCode: String?,
+    val informRegion: String?,
+    val informGrade: String?,
+    val informDate: String?
+)
+
+// MainScreen value class
 class MainScreenData() {
     var viewRain: String = ""
     var viewTemp: String = ""
@@ -111,25 +131,7 @@ class MainScreenData() {
     var textDust: String = ""
 }
 
-// 지역 Data용 class
-class RegionData(
-    var nx: Double,
-    var ny: Double,
-    var regionNameNow: String,
-    var baseDate: String
-)
-
-
-
-data class DustFactor(
-    val baseDate: String,
-    val baseD1 : String,
-    val informCode: String?,
-    val informRegion: String?,
-    val informGrade: String?,
-    val informDate: String?
-)
-
+// 상세보기 data class
 data class WeatherDetails(
     val fcstTime: String,
     val fcstDate: String,

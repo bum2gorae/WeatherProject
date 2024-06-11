@@ -8,7 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,20 +62,20 @@ class DetailActivity : ComponentActivity() {
     }
 }
 
-class WeatherViewModelFactory(private val userDao: UserDao) : ViewModelProvider.Factory {
+class WeatherViewModelFactory(private val weatherDao: WeatherDao) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(WeatherViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return WeatherViewModel(userDao) as T
+            return WeatherViewModel(weatherDao) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
 
-class WeatherViewModel(private val userDao: UserDao) : ViewModel() {
+class WeatherViewModel(private val weatherDao: WeatherDao) : ViewModel() {
     // Method to get weather summary data by IDs
     fun getWeatherDetails(): Flow<List<WeatherDetails>> {
-        return userDao.getAllDetails()
+        return weatherDao.getAllDetails()
     }
 }
 

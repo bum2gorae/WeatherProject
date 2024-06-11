@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(entities = [WeatherRoomClass::class], version = 1)
 abstract class AppDatabase : RoomDatabase() {
-    abstract fun userDao(): UserDao
+    abstract fun userDao(): WeatherDao
 
     companion object {
         @Volatile

@@ -8,13 +8,8 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
 
-//    @Query("SELECT * FROM user WHERE first_name LIKE :first AND " +
-//            "last_name LIKE :last LIMIT 1")
-//    fun findByName(first: String, last: String): User
-
-
 @Dao
-interface UserDao {
+interface WeatherDao {
     @Query("SELECT * FROM WeatherRoomClass")
     fun getAll(): Flow<List<WeatherRoomClass>>
 
