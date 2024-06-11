@@ -69,6 +69,12 @@ interface WeatherDao {
     @Query("SELECT MAX(rainRatio) FROM WeatherRoomClass WHERE fcstDate = `baseD+2`")
     fun getRainMaxD2(): Flow<Int>
 
+    fun getRainMax(isToday: Boolean): Flow<Int> {
+        return when {
+            isToday -> getRainMax()
+            else -> getRainMaxD1()
+        }
+    }
 }
 
 @Dao

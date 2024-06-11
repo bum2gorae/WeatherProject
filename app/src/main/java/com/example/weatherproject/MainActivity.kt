@@ -13,7 +13,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -37,31 +36,24 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieClipSpec
 import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieAnimatable
 import com.airbnb.lottie.compose.rememberLottieComposition
 import com.example.weatherproject.ui.theme.WeatherProjectTheme
@@ -70,19 +62,12 @@ import com.google.android.gms.location.LocationServices
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.InputStream
-import java.lang.Math.log
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatterBuilder
@@ -90,10 +75,6 @@ import java.time.temporal.ChronoField
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
-import kotlin.math.cos
-import kotlin.math.pow
-import kotlin.math.sin
-import kotlin.math.tan
 
 
 class MainActivity : ComponentActivity() {
@@ -152,7 +133,6 @@ object ApiobjectD {
 
 @Composable
 fun Main(fusedLocationClient: FusedLocationProviderClient) {
-    val context = LocalContext.current as Activity?
     val contextDB = LocalContext.current
     val dbWeather = remember {
         AppDatabase.getDatabase(contextDB)
@@ -167,8 +147,8 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     // 현재 날짜, 시간 정보 가져오기
     val cal = Calendar.getInstance(TimeZone.getTimeZone("Asia/Seoul")).apply {
         if (time.hours <= 2) {
-    // 동네예보  API는 3시간마다 현재시간+4시간 뒤의 날씨 예보를 알려주기 때문에
-    // 현재 시각이 00시가 넘었다면 어제 예보한 데이터를 가져와야함
+            // 동네예보  API는 3시간마다 현재시간+4시간 뒤의 날씨 예보를 알려주기 때문에
+            // 현재 시각이 00시가 넘었다면 어제 예보한 데이터를 가져와야함
             add(Calendar.DATE, -1)
         }
     }
@@ -178,20 +158,7 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     val baseD1 = baseDateFormat.format(cal.time)
     cal.add(Calendar.DATE, 1)
     val baseD2 = baseDateFormat.format(cal.time)
-
-    // 미세먼지 data 변환
-    val viewDateFormat = DateTimeFormatterBuilder()
-        .appendPattern("yyyy년 ")
-        .appendValue(ChronoField.MONTH_OF_YEAR)
-        .appendLiteral("월 ")
-        .appendValue(ChronoField.DAY_OF_MONTH)
-        .appendLiteral("일")
-        .toFormatter(Locale.KOREA)
-    val date = LocalDate.now()
-    val nextDay = date.plusDays(1)
-    val viewDate = date.format(viewDateFormat)
     baseDateFormat.timeZone = TimeZone.getTimeZone("Asia/Seoul")
-    val viewDateD1 = nextDay.format(viewDateFormat)
 
     var hasPermission by remember { mutableStateOf(checkLocationPermission(contextDB)) }
     val locationPermissionRequest = rememberLauncherForActivityResult(
@@ -289,9 +256,10 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     }
 
 
+    mainScreenData.viewRain =
+        dbWeather.userDao().getRainMax(!todaySwitchCheck)
+            .collectAsState(initial = -999).value.toString()
     if (todaySwitchCheck) {
-        mainScreenData.viewRain =
-            dbWeather.userDao().getRainMaxD1().collectAsState(initial = -999).value.toString()
         mainScreenData.viewTemp =
             dbWeather.userDao().getTempAvgD1().collectAsState(initial = -999).value.toString()
         val dust1 = getDustGrade(
@@ -301,16 +269,13 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             dbDust.DustDao().getDust25D1(baseD1, dustReg).collectAsState(initial = "").value
         )
         mainScreenData.viewDust = when {
-            dust1 <= 2 && dust2 <= 2 -> "좋음"
+            dust1 == 1 && dust2 == 1 -> "좋음"
+            dust1 <= 2 && dust2 <= 2 -> "보통"
             dust1 >= 3 && dust2 >= 3 -> "나쁨"
             else -> mainScreenData.viewDust
         }
-        nowRegionData.baseDate = viewDateD1
-        mainScreenData.dayCheck = "내일"
         mainScreenData.imageDetail = R.drawable.tomorrow_detail_icon
     } else {
-        mainScreenData.viewRain =
-            dbWeather.userDao().getRainMax().collectAsState(initial = -999).value.toString()
         mainScreenData.viewTemp =
             dbWeather.userDao().getTempAvg().collectAsState(initial = -999).value.toString()
         val dust1 = getDustGrade(
@@ -325,38 +290,9 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
             dust1 >= 3 && dust2 >= 3 -> "나쁨"
             else -> mainScreenData.viewDust
         }
-        nowRegionData.baseDate = viewDate
-        mainScreenData.dayCheck = "오늘"
         mainScreenData.imageDetail = R.drawable.today_details_icon
     }
 
-    var isFlipped by remember { mutableStateOf(false) }
-    val scaleX by animateFloatAsState(
-        targetValue = if (isFlipped) -1f else 1f,
-        animationSpec = tween(durationMillis = 1000), label = "flip"
-    )
-
-    when {
-        mainScreenData.viewTemp.toInt() == -999 -> {
-            mainScreenData.imageTemp = mainScreenData.imageTemp
-            mainScreenData.textTemp = mainScreenData.textTemp
-        }
-
-        mainScreenData.viewTemp.toInt() >= 25 -> {
-            mainScreenData.imageTemp = R.drawable.hot_penguin
-            mainScreenData.textTemp = "얇은 옷을 입어요!"
-        }
-
-        mainScreenData.viewTemp.toInt() in 15 until 25 -> {
-            mainScreenData.imageTemp = R.drawable.normal_penguin
-            mainScreenData.textTemp = "거의 봄날씨에요!"
-        }
-
-        mainScreenData.viewTemp.toInt() < 15 -> {
-            mainScreenData.imageTemp = R.drawable.cold_penguin
-            mainScreenData.textTemp = "옷을 따뜻하게 입어요!"
-        }
-    }
 
     when {
         mainScreenData.viewRain.toInt() == -999 -> {
@@ -405,20 +341,15 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
     Log.d("viewtemp", mainScreenData.viewTemp)
 
     MainScreen(
-        nowRegionData.baseDate,
         nowRegionData.regionNameNow,
-        mainScreenData.dayCheck,
         mainScreenData.imageRain,
         mainScreenData.textRain,
-        mainScreenData.imageTemp,
         mainScreenData.textTemp,
         todaySwitchCheck,
         onCheckedChange = {
             todaySwitchCheck = it
-            isFlipped = it
         },
         onReloadClickSuccess = {
-            isFlipped = !isFlipped
             fusedLocationClient.lastLocation
                 .addOnSuccessListener { location ->
                     // 위치가 null이 아닌 경우
@@ -439,36 +370,39 @@ fun Main(fusedLocationClient: FusedLocationProviderClient) {
         },
         mainScreenData.imageDust,
         mainScreenData.textDust,
-        context,
         onDetailClickSuccess = {
             val intent = Intent(it, DetailActivity::class.java)
             intent.putExtra("region", nowRegionData.regionNameNow)
             it?.startActivity(intent)
         },
-        scaleX,
-        lottieInsert = { Loader(isFlipped) }
+        mainScreenData.viewTemp,
+        mainScreenData.viewRain,
+        mainScreenData.viewDust,
     )
 }
 
 @Composable
 fun MainScreen(
-    baseDate: String,
     regionNameNow: String,
-    dayCheck: String,
     imageRain: Int,
     textRain: String,
-    imageTemp: Int,
     textTemp: String,
     todaySwitchCheck: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     onReloadClickSuccess: () -> Unit,
     imageDust: Int,
     textDust: String,
-    context: Activity?,
     onDetailClickSuccess: (Activity?) -> Unit,
-    scaleX: Float,
-    lottieInsert: @Composable () -> Unit
+    viewTemp: String,
+    viewRain: String,
+    viewDust: String,
 ) {
+    var isFlipped by remember { mutableStateOf(false) }
+    val scaleX by animateFloatAsState(
+        targetValue = if (isFlipped) -1f else 1f,
+        animationSpec = tween(durationMillis = 1000), label = "flip"
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -485,8 +419,20 @@ fun MainScreen(
                 ),
             contentAlignment = Alignment.Center
         ) {
+            val now = remember { LocalDate.now() }
+            val dateTimeFormatter = DateTimeFormatterBuilder()
+                .appendPattern("yyyy년 ")
+                .appendValue(ChronoField.MONTH_OF_YEAR)
+                .appendLiteral("월 ")
+                .appendValue(ChronoField.DAY_OF_MONTH)
+                .appendLiteral("일")
+                .toFormatter(Locale.KOREA)
             Text(
-                text = baseDate,
+                text = now.apply {
+                    if (todaySwitchCheck) {
+                        plusDays(1)
+                    }
+                }.format(dateTimeFormatter),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -519,7 +465,7 @@ fun MainScreen(
             Row(
                 modifier = Modifier
                     .background(
-                        color = if (dayCheck == "오늘") {
+                        color = if (!todaySwitchCheck) {
                             Color(0xffcaf5fc)
                         } else {
                             Color(0xffa7badb)
@@ -529,7 +475,7 @@ fun MainScreen(
                     .size(width = 120.dp, height = 45.dp)
                     .border(
                         BorderStroke(
-                            2.dp, color = if (dayCheck == "오늘") {
+                            2.dp, color = if (!todaySwitchCheck) {
                                 Color(0xff99d8e0)
                             } else {
                                 Color(0xff5f6e87)
@@ -542,12 +488,18 @@ fun MainScreen(
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
                 Text(
-                    text = dayCheck,
+                    text = when {
+                        todaySwitchCheck -> "내일"
+                        else -> "오늘"
+                    },
                     fontSize = 20.sp
                 )
                 Switch(
                     checked = todaySwitchCheck,
-                    onCheckedChange = { onCheckedChange(it) },
+                    onCheckedChange = {
+                        isFlipped = !isFlipped
+                        onCheckedChange(it)
+                    },
                     enabled = true
 //                colors = SwitchDefaults.colors()
                 )
@@ -587,50 +539,85 @@ fun MainScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconBox(
-                    imageID = imageTemp,
-                    describeText = textTemp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(10.dp),
-                    scaleX
-                )
-                Column( // Lottie Column
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .padding(10.dp)
-                ) {
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                    ) {
-                        val boxSize = maxWidth
-                        Box(modifier = Modifier
-                            .size(boxSize)
-                            .clickable {
-                                onDetailClickSuccess(context)
-                            },
-                            contentAlignment = Alignment.Center) {
-                            lottieInsert()
-                        }
-                    }
-                    Spacer(modifier = Modifier.size(10.dp))
-                    Text(
-                        text = "상세보기",
-                        fontSize = 13.sp
-                    )
-                }
+                TempIconBox(Modifier.weight(1f), viewTemp.toInt(), scaleX)
+                WeatherDetail(Modifier.weight(1f), onDetailClickSuccess, isFlipped)
             }
             Spacer(modifier = Modifier.size(20.dp))
             Button(onClick = {
+                isFlipped = !isFlipped
                 onReloadClickSuccess()
             }) {
                 Text(text = "새로고침")
             }
         }
+    }
+}
+
+@Composable
+fun TempIconBox(modifier: Modifier, viewTemp: Int, scaleX: Float) {
+    var imageTemp = R.drawable.transparent
+    var textTemp = ""
+    when {
+        viewTemp == -999 -> Unit
+        viewTemp >= 25 -> {
+            imageTemp = R.drawable.hot_penguin
+            textTemp = "얇은 옷을 입어요!"
+        }
+
+        viewTemp in 15 until 25 -> {
+            imageTemp = R.drawable.normal_penguin
+            textTemp = "거의 봄날씨에요!"
+        }
+
+        viewTemp < 15 -> {
+            imageTemp = R.drawable.cold_penguin
+            textTemp = "옷을 따뜻하게 입어요!"
+        }
+    }
+    IconBox(
+        imageID = imageTemp,
+        describeText = textTemp,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(10.dp),
+        scaleX
+    )
+}
+
+@Composable
+fun WeatherDetail(
+    modifier: Modifier,
+    onDetailClickSuccess: (Activity?) -> Unit,
+    isFlipped: Boolean
+) {
+    val context = LocalContext.current as Activity?
+    Column( // Lottie Column
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(10.dp)
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+        ) {
+            val boxSize = maxWidth
+            Box(
+                modifier = Modifier
+                    .size(boxSize)
+                    .clickable {
+                        onDetailClickSuccess(context)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Loader(isFlipped)
+            }
+        }
+        Spacer(modifier = Modifier.size(10.dp))
+        Text(
+            text = "상세보기",
+            fontSize = 13.sp
+        )
     }
 }
 
